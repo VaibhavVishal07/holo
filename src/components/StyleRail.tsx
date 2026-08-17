@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { PRESETS, presetById, type MaterialPreset } from '../materials/presets'
+import { STYLES, styleById, type HoloStyle } from '../materials/styles'
 import { processSource } from '../lib/artwork'
 import type { Artwork } from '../lib/artwork'
 import {
-  MaterialBlend,
+  StyleBlend,
   createArtworkTextures,
   createHoloMaterial,
   type ArtworkTextures,
@@ -13,7 +13,7 @@ import {
 import { useStore } from '../state/store'
 
 /**
- * Material choices as physical discs.
+ * Style choices as physical discs.
  *
  * These are not colour dots approximating the film — each one is the production
  * shader running on a circle, lit by the same virtual studio, at its own fixed
@@ -44,18 +44,18 @@ function getDiscArtwork(): Artwork {
   return discArtwork
 }
 
-export function MaterialRail() {
-  const material = useStore((s) => s.material)
-  const setMaterial = useStore((s) => s.set)
-  const width = PRESETS.length * SWATCH + (PRESETS.length - 1) * GAP
+export function StyleRail() {
+  const active = useStore((s) => s.style)
+  const setStyle = useStore((s) => s.set)
+  const width = STYLES.length * SWATCH + (STYLES.length - 1) * GAP
 
   return (
     <div className="rail">
-      <span className="micro">Material</span>
+      <span className="micro">Style</span>
       <div
         className="rail-swatches"
         role="radiogroup"
-        aria-label="Material"
+        aria-label="Style"
         style={{ gap: `${GAP}px` }}
       >
         <div className="rail-canvas" aria-hidden="true">
@@ -70,20 +70,20 @@ export function MaterialRail() {
             <Discs />
           </Canvas>
         </div>
-        {PRESETS.map((preset) => (
+        {STYLES.map((style) => (
           <button
-            key={preset.id}
+            key={style.id}
             type="button"
             role="radio"
-            aria-checked={preset.id === material}
-            aria-label={preset.name}
+            aria-checked={style.id === active}
+            aria-label={style.name}
             className="swatch"
             style={{ width: SWATCH, height: SWATCH }}
-            onClick={() => setMaterial('material', preset.id)}
+            onClick={() => setStyle('style', style.id)}
           />
         ))}
       </div>
-      <span className="rail-name">{presetById(material).name}</span>
+      <span className="rail-name">{styleById(active).name}</span>
     </div>
   )
 }
@@ -95,10 +95,10 @@ function Discs() {
 
   return (
     <>
-      {PRESETS.map((preset, index) => (
+      {STYLES.map((holoStyle, index) => (
         <Disc
-          key={preset.id}
-          preset={preset}
+          key={holoStyle.id}
+          holoStyle={holoStyle}
           textures={textures}
           index={index}
           planeSize={scale}
@@ -109,18 +109,18 @@ function Discs() {
 }
 
 interface DiscProps {
-  preset: MaterialPreset
+  holoStyle: HoloStyle
   textures: ArtworkTextures
   index: number
   planeSize: number
 }
 
-function Disc({ preset, textures, index, planeSize }: DiscProps) {
+function Disc({ holoStyle, textures, index, planeSize }: DiscProps) {
   const mesh = useRef<THREE.Mesh>(null)
   const material = useMemo(() => createHoloMaterial(textures), [textures])
-  const blend = useMemo(() => new MaterialBlend(preset), [preset])
+  const blend = useMemo(() => new StyleBlend(holoStyle), [holoStyle])
   const light = useMemo(() => new THREE.Vector3(), [])
-  const centre = (index - (PRESETS.length - 1) / 2) * (SWATCH + GAP)
+  const centre = (index - (STYLES.length - 1) / 2) * (SWATCH + GAP)
 
   useEffect(() => () => material.dispose(), [material])
 
@@ -141,6 +141,9 @@ function Disc({ preset, textures, index, planeSize }: DiscProps) {
     u.uCamera.value.copy(camera.position)
     u.uBorderMode.value = 0
     u.uBorderPx.value = 0
+    // A plane, so the mask has to supply the silhouette.
+    u.uTrim.value = 1
+    u.uPlaneSize.value.set(planeSize, planeSize)
     u.uBase.value.copy(blend.base)
     u.uEnvLow.value.copy(blend.envLow)
     u.uEnvHigh.value.copy(blend.envHigh)
@@ -152,6 +155,9 @@ function Disc({ preset, textures, index, planeSize }: DiscProps) {
     u.uTexture.value = 0.4
     u.uSaturation.value = blend.get('saturation')
     u.uPearl.value = blend.get('pearl')
+    u.uGlass.value = blend.get('glass')
+    u.uDispersion.value = blend.get('dispersion')
+    u.uSparkle.value = blend.get('sparkle')
     u.uPeriod.value = blend.get('period')
     u.uPeriodVar.value = blend.get('periodVar')
     // A 27px disc can only carry one sweep before the bands turn into noise.

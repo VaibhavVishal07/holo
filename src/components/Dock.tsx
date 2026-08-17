@@ -1,4 +1,4 @@
-import { MaterialRail } from './MaterialRail'
+import { StyleRail } from './StyleRail'
 import { Slider } from './Slider'
 import { BACKGROUNDS, useStore, type BorderMaterial } from '../state/store'
 
@@ -17,7 +17,7 @@ export function Dock() {
     <div className="dock">
       <div className="dock-panel">
         <div className="dock-row">
-          <MaterialRail />
+          <StyleRail />
         </div>
 
         <div className="dock-row">

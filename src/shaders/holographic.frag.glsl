@@ -29,6 +29,8 @@ varying vec3 vWorldPos;
 varying vec3 vNormal;
 varying vec3 vTangent;
 varying vec3 vBitangent;
+/** 1 on the flat faces, 0 on the cut edge, between the two across the bevel. */
+varying float vFace;
 
 uniform sampler2D uSdf;      // R: signed distance to the artwork contour, in mask px
 uniform sampler2D uArtwork;  // RGB: source artwork (sRGB), A: mask
@@ -42,6 +44,11 @@ uniform float uBorderPx;
 uniform float uBorderMode;   // 0 none · 1 white · 2 silver · 3 holographic
 uniform float uOriginal;     // 0 material, 1 the untouched upload
 uniform float uOpacity;      // entry fade
+/**
+ * 1 when the mesh is a plane and the silhouette has to come from the mask; 0 when
+ * the mesh is the extruded solid and already *is* the silhouette.
+ */
+uniform float uTrim;
 
 // Material, driven by the presets and the sliders.
 uniform vec3 uBase;          // silver body tint
@@ -55,6 +62,9 @@ uniform float uShine;        // gloss strength
 uniform float uTexture;      // grain + brushing amount
 uniform float uSaturation;
 uniform float uPearl;        // how much white sits under the spectrum
+uniform float uGlass;        // strength of the clear laminate over the foil
+uniform float uDispersion;   // how far the channels separate at the bevel
+uniform float uSparkle;      // strength of the studio's glints
 uniform float uPeriod;       // grating pitch, micrometres
 uniform float uPeriodVar;
 uniform float uFlow;         // how many band sweeps cross the artwork
@@ -164,6 +174,22 @@ float softRect(vec2 p, vec2 halfSize, float soft) {
 }
 
 /**
+ * A small bright source with four diffraction spikes — a glint.
+ *
+ * This lives in the studio rather than being drawn onto the surface, so when the
+ * sheet turns and its reflection sweeps across one, the star appears, travels and
+ * goes out on its own. Painting stars onto the artwork instead would leave them
+ * stuck to it, which is the tell of a decorative overlay.
+ */
+float glint(vec2 q, float size) {
+  float r = length(q) / size;
+  float core = exp(-r * r * 2.2);
+  float across = exp(-abs(q.y) / (size * 0.14)) * exp(-abs(q.x) / (size * 4.5));
+  float down = exp(-abs(q.x) / (size * 0.14)) * exp(-abs(q.y) / (size * 4.5));
+  return core + (across + down) * 0.62;
+}
+
+/**
  * A small procedural studio, sampled by the reflection vector projected onto a
  * virtual wall and magnified.
  *
@@ -174,9 +200,12 @@ float softRect(vec2 p, vec2 halfSize, float soft) {
  * neutral view, so the sticker is always on the verge of catching it.
  */
 vec3 room(vec3 r) {
-  vec2 p = (r.xy / max(0.30, r.z)) * 3.4;
+  // Magnified hard, because a nearly flat sheet only ever reflects a narrow cone.
+  // Widening what that cone maps to is what gives the chrome its range: near-black
+  // in one region and blown white in another, a few degrees apart.
+  vec2 p = (r.xy / max(0.30, r.z)) * 5.2;
 
-  vec3 c = mix(uEnvLow, uEnvHigh, smoothstep(-1.05, 0.30, p.y));
+  vec3 c = mix(uEnvLow, uEnvHigh, smoothstep(-0.95, 0.36, p.y));
 
   float key = softRect(p - vec2(-0.10, 0.62), vec2(0.85, 0.50), 0.40);
   float fill = softRect(p - vec2(1.15, 0.02), vec2(0.24, 0.60), 0.34);
@@ -184,9 +213,41 @@ vec3 room(vec3 r) {
 
   c += vec3(1.0, 0.995, 0.982) * key * uKey * 0.46;
   c += vec3(0.88, 0.94, 1.0) * fill * uFill * 0.60;
-  c *= 1.0 - occluder * 0.24;
+
+  c *= 1.0 - occluder * 0.30;
 
   return c;
+}
+
+/**
+ * The studio's *specular* sources, kept separate from its body on purpose.
+ *
+ * Diffraction redirects the body: where the grating throws colour at the eye it
+ * stops throwing white, so the body has to give way. A highlight off the laminate
+ * is a different layer entirely — it reflects before the light ever reaches the
+ * film, so it does not care what colour is underneath. Folding these into the body
+ * meant the strongest colour erased every streak and glint on the sticker, which
+ * is exactly backwards: on real prints the two sit on top of one another.
+ */
+vec3 roomHighlights(vec3 r) {
+  vec2 p = (r.xy / max(0.30, r.z)) * 5.2;
+
+  // Two narrow strip lights. Reflected off a surface that is never perfectly
+  // flat, a thin bright source becomes a long sinuous highlight that travels as
+  // the object turns — that streak is what reads as a wet laminate, and a broad
+  // softbox cannot produce it however bright it gets.
+  float stripA = softRect(p - vec2(0.10, 0.40), vec2(2.30, 0.055), 0.09);
+  float stripB = softRect(p - vec2(-0.62, -0.14), vec2(0.045, 1.80), 0.075);
+
+  // Three glints, scattered so a tilt only ever catches one or two.
+  float sparks =
+    glint(p - vec2(0.52, 0.76), 0.115) +
+    glint(p - vec2(-0.86, 0.30), 0.085) * 0.8 +
+    glint(p - vec2(0.16, -0.70), 0.095) * 0.65;
+
+  return vec3(1.0, 0.998, 0.99) * stripA * 2.1 +
+         vec3(0.96, 0.985, 1.0) * stripB * 1.0 +
+         vec3(1.0) * sparks * uSparkle * 3.4;
 }
 
 // --- reflectance ------------------------------------------------------------
@@ -229,13 +290,14 @@ void main() {
   float d = sdfAt(vUv);
   float border = uBorderMode < 0.5 ? 0.0 : uBorderPx;
 
-  // Artwork edge comes from the mask's own anti-aliasing, which is finer than
-  // anything the distance field can reconstruct. The die cut comes from the
-  // field, so its width is free.
   vec4 art = texture2D(uArtwork, vec2(vUv.x, 1.0 - vUv.y));
   float aa = max(fwidth(d), 0.6);
   float cutAlpha = 1.0 - smoothstep(border - aa, border + aa, d);
-  float alpha = max(art.a, cutAlpha);
+
+  // The extruded solid carries its own silhouette, so the field is only asked
+  // which material a point is: exposed foil, or the white overprint around it.
+  // That inner boundary stays perfectly crisp because it is still analytic.
+  float alpha = mix(1.0, max(art.a, cutAlpha), uTrim);
   if (alpha < 0.002) discard;
 
   float inBorder = clamp(cutAlpha - art.a, 0.0, 1.0);
@@ -270,19 +332,13 @@ void main() {
     vec2(grain * 0.6, grain) * uTexture * 0.007 +
     vec2(0.0, brush) * uTexture * 0.005;
 
-  // Bevel the die cut so the vinyl reads as having thickness once it turns. This
-  // is real geometry, so it belongs to both normals.
-  float bevelWidth = 1.2 + uDepth * 3.4;
-  float rim = 1.0 - smoothstep(0.0, bevelWidth, border - d);
-  vec2 cutGrad = vec2(
-    sdfAt(vUv + vec2(uTexel.x, 0.0)) - sdfAt(vUv - vec2(uTexel.x, 0.0)),
-    sdfAt(vUv + vec2(0.0, uTexel.y)) - sdfAt(vUv - vec2(0.0, uTexel.y))
-  );
-  float gradLen = length(cutGrad);
-  if (gradLen > 1e-5) slopeMacro += (cutGrad / gradLen) * rim * 0.30;
-
   vec3 nMacro = normalize(n + t * slopeMacro.x + b * slopeMacro.y);
   n = normalize(nMacro + t * slopeMicro.x + b * slopeMicro.y);
+
+  // How flat this fragment's face is: 1 across the sheet, 0 on the cut edge.
+  // `flat` is a reserved interpolation qualifier, hence the name.
+  float faceness = smoothstep(0.26, 0.72, vFace);
+  float rimness = 1.0 - faceness;
 
   vec3 v = normalize(uCamera - vWorldPos);
   vec3 l = normalize(uLight - vWorldPos);
@@ -294,6 +350,11 @@ void main() {
   // --- the metal ---
   vec3 env = room(reflect(-v, n));
   float envLuma = dot(env, vec3(0.2126, 0.7152, 0.0722));
+
+  // The laminate is smoother than the film under it, so it gets its own normal
+  // with most of the micro-roughness taken back out.
+  vec3 coatNormal = normalize(nMacro + t * slopeMicro.x * 0.2 + b * slopeMicro.y * 0.2);
+  vec3 highlights = roomHighlights(reflect(-v, coatNormal));
 
   // Restrained Fresnel: silver is already reflective everywhere, so this only
   // has to lift the grazing edges a little.
@@ -340,14 +401,28 @@ void main() {
   float x0 = abs(dot(hp, g0));
 
   float um = pitch * x0 + uLambdaShift;
+
+  // Dispersion. The laminate bends each channel a little differently, and the
+  // optical path through it is longest where the surface turns away — so the
+  // separation is widest on the bevels. That coloured fringe along an edge is the
+  // single most recognisable thing about a glossy holographic print.
+  float spread = uDispersion * (0.20 + rimness * 1.7);
+  float umR = um * (1.0 + 0.055 * spread);
+  float umB = um * (1.0 - 0.055 * spread);
+  float visR = visible(umR);
   float vis = visible(um);
-  vec3 spectrum = spectral(um * 1000.0) * vis;
-  float energy = vis;
+  float visB = visible(umB);
+  vec3 spectrum = vec3(
+    spectral(umR * 1000.0).r * visR,
+    spectral(um * 1000.0).g * vis,
+    spectral(umB * 1000.0).b * visB
+  );
+  float energy = max(vis, max(visR, visB) * 0.85);
 
   // Second order, faint. It only reaches the visible band at strong angles, where
   // it lays a narrow secondary band beside the first.
   float umSecond = pitch * x0 * 0.5 + uLambdaShift;
-  float visSecond = visible(umSecond) * 0.22;
+  float visSecond = visible(umSecond) * 0.30;
   spectrum += spectral(umSecond * 1000.0) * visSecond;
   energy += visSecond;
 
@@ -384,16 +459,16 @@ void main() {
   float breadth = 0.45 + 0.55 * fbm2(pUv * uFlow * 0.7 + 7.1);
   // No light, no diffraction. Tying colour to the illuminated regions is what
   // makes the spectrum travel with the reflection rather than sit on the artwork.
-  float illuminated = 0.28 + 0.72 * smoothstep(0.08, 0.58, envLuma);
+  float illuminated = 0.42 + 0.58 * smoothstep(0.06, 0.56, envLuma);
 
   float diffraction =
-    clamp(energy * breadth * illuminated * uHolo * uCoverage * 1.85, 0.0, 1.0);
+    clamp(energy * breadth * illuminated * uHolo * uCoverage * 2.45, 0.0, 1.0);
 
   // Diffracted light is redirected, not added: where the grating throws colour
   // at the eye it stops throwing white, so the silver has to give way.
   vec3 foil = mix(
     metal,
-    metal * 0.14 + spectrum * min(1.12, 0.44 + envLuma * 0.74),
+    metal * 0.10 + spectrum * min(1.48, 0.56 + envLuma * 0.98),
     diffraction
   );
 
@@ -422,6 +497,28 @@ void main() {
     }
     color = mix(color, borderColor, inBorder);
   }
+
+  // The cut edge of the sheet. The mesh's own normals point outward here, so the
+  // studio is sampled at a grazing angle and the rim picks up its own highlight —
+  // which is what makes the thickness read rather than look like an outline.
+  vec3 cutEdge = metal * 0.46 * (0.60 + envLuma * 0.90);
+  cutEdge += vec3(1.0) * specular * uShine * 0.10;
+  cutEdge = mix(cutEdge, foil * 0.5, 0.22);
+  color = mix(cutEdge, color, faceness);
+
+  // --- clear coat ---
+  // A laminate sits over the foil, and it is a separate optical layer with its own
+  // Fresnel. Without it the surface reads as bare film; with it, as something
+  // printed and laminated — the wet look on a real sticker.
+  float coatFresnel = 0.05 + 0.95 * pow(1.0 - max(dot(coatNormal, v), 0.0), 5.0);
+  float coat = uGlass * (0.16 + coatFresnel * 0.84);
+  // The coat reflects some light away before it ever reaches the foil.
+  color *= 1.0 - coat * 0.20;
+  color += room(reflect(-v, coatNormal)) * coat * 0.26;
+
+  // Streaks and glints last, over everything. These are reflections off the top
+  // of the laminate, so no amount of colour underneath dims them.
+  color += highlights * (0.45 + uGlass * 1.9) * (0.45 + uShine * 0.9);
 
   color = shoulder(color);
 

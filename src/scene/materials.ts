@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { Artwork } from '../lib/artwork'
-import type { MaterialPreset } from '../materials/presets'
+import type { HoloStyle } from '../materials/styles'
 import holoVert from '../shaders/holographic.vert.glsl?raw'
 import holoFrag from '../shaders/holographic.frag.glsl?raw'
 import silhouetteVert from '../shaders/silhouette.vert.glsl?raw'
@@ -77,7 +77,8 @@ export function createHoloMaterial(textures: ArtworkTextures) {
     fragmentShader: holoFrag,
     glslVersion: THREE.GLSL3,
     transparent: true,
-    depthWrite: false,
+    // The sticker is a solid now, so its faces have to occlude one another.
+    depthWrite: true,
     side: THREE.FrontSide,
     uniforms: {
       uSdf: { value: textures.sdf },
@@ -92,6 +93,8 @@ export function createHoloMaterial(textures: ArtworkTextures) {
       uBorderMode: { value: 1 },
       uOriginal: { value: 0 },
       uOpacity: { value: 1 },
+      uTrim: { value: 1 },
+      uPlaneSize: { value: new THREE.Vector2(1, 1) },
       uBase: { value: new THREE.Color('#D9DAD6') },
       uEnvLow: { value: new THREE.Color('#585B5C') },
       uEnvHigh: { value: new THREE.Color('#EAEBE7') },
@@ -102,7 +105,10 @@ export function createHoloMaterial(textures: ArtworkTextures) {
       uShine: { value: 0.6 },
       uTexture: { value: 0.45 },
       uSaturation: { value: 1 },
-      uPearl: { value: 0.26 },
+      uPearl: { value: 0.14 },
+      uGlass: { value: 0.5 },
+      uDispersion: { value: 0.5 },
+      uSparkle: { value: 0.5 },
       uPeriod: { value: 1.55 },
       uPeriodVar: { value: 0.3 },
       uFlow: { value: 2.4 },
@@ -155,11 +161,11 @@ export function createShadowMaterial(textures: ArtworkTextures) {
 }
 
 /**
- * A preset with every field mutable, so switching films can be interpolated
+ * A style with every field mutable, so switching films can be interpolated
  * rather than cut. Nobody asked for a transition; a hard swap simply looks like
  * two different pictures instead of one object changing material.
  */
-export class MaterialBlend {
+export class StyleBlend {
   base = new THREE.Color()
   envLow = new THREE.Color()
   envHigh = new THREE.Color()
@@ -177,6 +183,9 @@ export class MaterialBlend {
     'fill',
     'saturation',
     'pearl',
+    'glass',
+    'dispersion',
+    'sparkle',
     'period',
     'periodVar',
     'flow',
@@ -190,24 +199,24 @@ export class MaterialBlend {
     'shineScale',
   ] as const
 
-  constructor(preset: MaterialPreset) {
-    this.setTarget(preset)
+  constructor(style: HoloStyle) {
+    this.setTarget(style)
     this.base.copy(this.targetBase)
     this.envLow.copy(this.targetEnvLow)
     this.envHigh.copy(this.targetEnvHigh)
     this.bias.copy(this.targetBias)
-    for (const key of MaterialBlend.KEYS) this.numeric[key] = this.targetNumeric[key]
+    for (const key of StyleBlend.KEYS) this.numeric[key] = this.targetNumeric[key]
   }
 
-  setTarget(preset: MaterialPreset) {
-    this.targetBase.set(preset.base)
-    this.targetEnvLow.set(preset.envLow)
-    this.targetEnvHigh.set(preset.envHigh)
-    this.targetBias.set(preset.bias[0], preset.bias[1], preset.bias[2])
-    for (const key of MaterialBlend.KEYS) this.targetNumeric[key] = preset[key]
+  setTarget(style: HoloStyle) {
+    this.targetBase.set(style.base)
+    this.targetEnvLow.set(style.envLow)
+    this.targetEnvHigh.set(style.envHigh)
+    this.targetBias.set(style.bias[0], style.bias[1], style.bias[2])
+    for (const key of StyleBlend.KEYS) this.targetNumeric[key] = style[key]
   }
 
-  get(key: (typeof MaterialBlend.KEYS)[number]) {
+  get(key: (typeof StyleBlend.KEYS)[number]) {
     return this.numeric[key]
   }
 
@@ -217,7 +226,7 @@ export class MaterialBlend {
     this.envLow.lerp(this.targetEnvLow, t)
     this.envHigh.lerp(this.targetEnvHigh, t)
     this.bias.lerp(this.targetBias, t)
-    for (const key of MaterialBlend.KEYS) {
+    for (const key of StyleBlend.KEYS) {
       this.numeric[key] += (this.targetNumeric[key] - this.numeric[key]) * t
     }
   }

@@ -30,7 +30,8 @@ export const BACKGROUNDS: Background[] = [
 ]
 
 export interface Settings {
-  material: string
+  /** Which holographic style the sticker is made of. */
+  style: string
   holo: number
   shine: number
   texture: number
@@ -46,8 +47,8 @@ export interface Settings {
 }
 
 export const DEFAULTS: Settings = {
-  material: 'classic',
-  holo: 0.62,
+  style: 'classic',
+  holo: 0.85,
   shine: 0.6,
   texture: 0.4,
   border: 7,

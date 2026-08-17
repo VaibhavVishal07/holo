@@ -15,9 +15,24 @@ npm install
 npm run dev
 ```
 
+## The object
+
+The sticker is a real extruded solid. Its die-cut outline is traced out of the
+distance field with marching squares and extruded with a shallow bevel, so it has
+side walls that catch the light and a silhouette with genuine thickness when it
+turns. Depth is baked at one unit and applied by scaling z, so the Depth control
+never triggers a geometry rebuild — only a change of border width needs a new
+trace. Holes nest correctly: each one is assigned to the smallest shell that
+contains it, so a counter inside a letter inside a badge resolves.
+
+Because the mesh now *is* the silhouette, the shader stopped trimming the front
+face. It reads the field only to decide which material a point is — exposed foil
+or the white overprint around it — so that inner boundary stays analytic and
+perfectly crisp while the outer edge comes from real geometry.
+
 ## The material
 
-The sticker is a custom GLSL film, not a gradient. Two things carry it.
+The sticker is a custom GLSL film, not a gradient. Several layers carry it.
 
 **Silver comes from reflecting a room.** `room()` builds a small procedural
 studio — a bright ceiling over a dark floor, a key softbox, a fill strip, a dark
@@ -65,6 +80,18 @@ Several decisions in there exist because the obvious version looked wrong:
   almost none. It is the knob that calibrates a preset against real film.
 - **Two normals.** The grating follows the vinyl's real shape; grain and brushing
   are finer than the grating and only scatter the specular.
+
+**Glass, and why the highlights are a separate layer.** A laminate sits over the
+foil with its own normal and its own Fresnel, and `dispersion` separates the
+channels through it — widest where the surface turns away, which is what fringes a
+bevel with colour. The studio's specular sources are deliberately kept out of its
+body: two narrow strip lights and three four-spike glints, reflected off the coat
+and added *after* the diffraction. Folding them into the body meant the strongest
+colour multiplied them away, which is backwards — a reflection off the top of the
+laminate happens before the light ever reaches the film, so no amount of colour
+underneath should dim it. It is also why there is no tight specular lobe here: on a
+sheet this flat with the light this far off axis, no point lobe ever aligns, but a
+reflected strip always finds some part of the surface.
 
 ## The die cut
 
@@ -124,11 +151,11 @@ stepping and assistive behaviour stay native rather than reimplemented.
 
 ```
 src/
-  components/   Stage, Dock, MaterialRail, Slider, ExportPanel
+  components/   Stage, Dock, StyleRail, Slider, ExportPanel
   hooks/        useTilt, useExport, useMotionExport
-  lib/          artwork (decode + mask), edt (distance field), demoArtwork
-  materials/    presets
-  scene/        Sticker, Backdrop, materials, handle
+  lib/          artwork (decode + mask), edt (distance field), contour, demoArtwork
+  materials/    styles
+  scene/        Sticker, stickerGeometry, Backdrop, materials, handle
   shaders/      holographic, edge, shadow, silhouette
   state/        store
 ```
@@ -136,10 +163,12 @@ src/
 ## Notes
 
 - Satoshi is served from `public/fonts/` as a variable font.
-- The seven presets differ in base metal, studio, grating pitch, pitch variance,
-  band count, orientation drift, pearl, film strength, specular roughness and
-  anisotropy, and spectral bias — not just in colour.
-- Switching material interpolates every parameter rather than cutting.
+- Nine styles: Classic, Soft, Prism, Glass, Chrome, Ice, Warm, Oil, Candy. They
+  differ in base metal, studio, grating pitch, pitch variance, band count,
+  orientation drift, pearl, laminate strength, dispersion, glint response, film
+  strength, specular roughness and anisotropy, and spectral bias — not just in
+  colour.
+- Switching style interpolates every parameter rather than cutting.
 - `prefers-reduced-motion` disables the idle drift and the Auto oscillation;
   direct manipulation still responds.
 - Optional device-orientation tilt on phones (spec item 74) is not implemented;

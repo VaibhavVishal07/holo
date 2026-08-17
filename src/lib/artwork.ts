@@ -1,5 +1,6 @@
 import { DataUtils } from 'three'
 import { signedDistanceField } from './edt'
+import { coarsen, type CoarseField } from './contour'
 
 /**
  * Everything downstream of an upload. One pass, done once per image: decode ->
@@ -22,6 +23,12 @@ export interface Artwork {
   height: number
   /** Signed distance to the artwork contour, in mask pixels. Half-float, R. */
   sdf: Uint16Array
+  /**
+   * The same field on a coarse grid, kept for tracing the die-cut outline. A
+   * distance field is smooth, so a few hundred samples across carry the shape,
+   * and this avoids retaining a multi-megabyte float copy.
+   */
+  coarse: CoarseField
   /** RGB of the source artwork, A = mask. RGBA8. */
   color: Uint8Array
   /** Half the artwork's untrimmed extent, in mask pixels — used for framing. */
@@ -314,6 +321,7 @@ function trimAndPad(mask: RawMask): Artwork {
     width: outW,
     height: outH,
     sdf,
+    coarse: coarsen(sdfFloat, outW, outH, 560),
     color,
     contentWidth,
     contentHeight,

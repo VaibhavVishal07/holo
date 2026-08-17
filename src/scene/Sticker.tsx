@@ -2,18 +2,18 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { Artwork } from '../lib/artwork'
-import { presetById } from '../materials/presets'
+import { styleById } from '../materials/styles'
 import type { TiltEngine } from '../hooks/useTilt'
 import { useStore } from '../state/store'
 import {
   BORDER_MODE,
   BORDER_UNIT_PX,
-  MaterialBlend,
+  StyleBlend,
   createArtworkTextures,
-  createEdgeMaterial,
   createHoloMaterial,
   createShadowMaterial,
 } from './materials'
+import { buildStickerGeometry, sheetThickness } from './stickerGeometry'
 import { motionHandle, sceneHandle } from './handle'
 
 /** Fraction of the shorter viewport axis the artwork should occupy. */
@@ -31,35 +31,51 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
   const tilt = useRef<THREE.Group>(null)
   const shadow = useRef<THREE.Mesh>(null)
   const surface = useRef<THREE.Mesh>(null)
-  const edge = useRef<THREE.Mesh>(null)
 
   const { camera, gl, scene, viewport } = useThree()
 
+  // Only these two reshape the mesh, so they are read as state rather than from
+  // the frame loop — a change here is a geometry rebuild, not a uniform write.
+  const border = useStore((s) => s.border)
+  const borderMaterial = useStore((s) => s.borderMaterial)
+
   const textures = useMemo(() => createArtworkTextures(artwork), [artwork])
   const holoMaterial = useMemo(() => createHoloMaterial(textures), [textures])
-  const edgeMaterial = useMemo(() => createEdgeMaterial(textures), [textures])
   const shadowMaterial = useMemo(() => createShadowMaterial(textures), [textures])
 
   useEffect(
     () => () => {
       holoMaterial.dispose()
-      edgeMaterial.dispose()
       shadowMaterial.dispose()
       textures.dispose()
     },
-    [holoMaterial, edgeMaterial, shadowMaterial, textures],
+    [holoMaterial, shadowMaterial, textures],
   )
 
   const blend = useMemo(
-    () => new MaterialBlend(presetById(useStore.getState().material)),
+    () => new StyleBlend(styleById(useStore.getState().style)),
     [],
   )
 
-  // Plane geometry carries the padded mask's aspect; the padding is where the
-  // die cut and the shadow live.
+  // The padded mask's aspect; the padding is where the die cut and the shadow
+  // live.
   const long = Math.max(artwork.width, artwork.height)
   const planeWidth = artwork.width / long
   const planeHeight = artwork.height / long
+
+  // The die-cut outline traced and extruded. Only the border width changes the
+  // outline, so depth stays free of rebuilds — it is applied by scaling z.
+  const borderUnits = borderMaterial === 'none' ? 0 : border
+  const solid = useMemo(
+    () => buildStickerGeometry(artwork, borderUnits * BORDER_UNIT_PX),
+    [artwork, borderUnits],
+  )
+  useEffect(() => () => solid?.geometry.dispose(), [solid])
+
+  useEffect(() => {
+    holoMaterial.uniforms.uTrim.value = 0
+    holoMaterial.uniforms.uPlaneSize.value.set(planeWidth, planeHeight)
+  }, [holoMaterial, planeWidth, planeHeight])
 
   // Scale so the artwork itself — not the padding — fills the frame.
   const fit = useMemo(() => {
@@ -97,8 +113,7 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
 
   useFrame((_, delta) => {
     const s = useStore.getState()
-    const preset = presetById(s.material)
-    blend.setTarget(preset)
+    blend.setTarget(styleById(s.style))
     blend.step(delta)
     engine.update(delta)
 
@@ -144,6 +159,9 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     u.uTexture.value = s.texture
     u.uSaturation.value = blend.get('saturation')
     u.uPearl.value = blend.get('pearl')
+    u.uGlass.value = blend.get('glass')
+    u.uDispersion.value = blend.get('dispersion')
+    u.uSparkle.value = blend.get('sparkle')
     u.uPeriod.value = blend.get('period')
     u.uPeriodVar.value = blend.get('periodVar')
     // Spectrum rides on the preset's own band count rather than replacing it, so
@@ -157,15 +175,9 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     u.uDepth.value = s.depth
     u.uLambdaShift.value = blend.get('lambdaShift')
 
-    const e = edgeMaterial.uniforms
-    e.uBorderPx.value = borderPx
-    e.uBorderMode.value = borderMode
-    e.uColor.value.setRGB(0.115, 0.112, 0.104)
-    e.uOpacity.value = appear
-
-    if (edge.current) {
-      // Thickness scales with the depth control; the offset is what peeks out.
-      edge.current.position.z = -0.004 - s.depth * 0.007
+    if (tilt.current) {
+      // Depth is baked at one unit, so the sheet's thickness is just a scale.
+      tilt.current.scale.z = sheetThickness(s.depth)
     }
 
     const sh = shadowMaterial.uniforms
@@ -185,12 +197,14 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
         <planeGeometry args={[planeWidth, planeHeight]} />
       </mesh>
       <group ref={tilt}>
-        <mesh ref={edge} material={edgeMaterial} renderOrder={1}>
-          <planeGeometry args={[planeWidth, planeHeight]} />
-        </mesh>
-        <mesh ref={surface} material={holoMaterial} renderOrder={2}>
-          <planeGeometry args={[planeWidth, planeHeight]} />
-        </mesh>
+        {solid && (
+          <mesh
+            ref={surface}
+            material={holoMaterial}
+            geometry={solid.geometry}
+            renderOrder={1}
+          />
+        )}
       </group>
     </group>
   )

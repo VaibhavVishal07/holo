@@ -296,6 +296,14 @@ void main() {
   float fresnel = pow(1.0 - ndv, 4.5);
   vec3 metal = env * uBase * (1.0 + fresnel * 0.5) * (0.93 + facet.x * 0.15);
 
+  // Gloss is mostly the reflected sources, not a point highlight. On a sheet this
+  // flat, under a light this far off axis, a tight lobe never fires — so Shine has
+  // to act on the part of the reflection that is actually the light: the bright
+  // excess where the softbox lands. Low Shine reads satin, high Shine takes that
+  // reflection to near-white.
+  float sources = max(0.0, envLuma - 0.70);
+  metal *= 1.0 + sources * (uShine - 0.30) * 1.15;
+
   // --- diffraction ---
   // The grating lives in the plane of the film, so the half-vector has to be
   // resolved in the frame of the *perturbed* surface. This is the join that makes
@@ -399,7 +407,7 @@ void main() {
   // gain lets the places where the gate and the grating actually agree saturate
   // completely. Concentration is the point, not average intensity.
   float agree = energy * gate;
-  float diffraction = clamp(agree * agree * uHolo * 48.0, 0.0, 1.0);
+  float diffraction = clamp(agree * agree * uHolo * 56.0, 0.0, 1.0);
   // One more push away from the middle. Partial diffraction over bright metal is
   // what reads as washed-out pastel, so the mid range is thinned out in favour of
   // committed colour and committed silver.
@@ -415,8 +423,8 @@ void main() {
   // --- gloss ---
   // A broad lobe rather than a pinpoint. A flat sticker reflects the shape of the
   // source, and the source here is a softbox.
-  float specular = ggx(n, h, t, b, uRoughness * 1.7 + 0.055, uAniso) * lit;
-  foil += vec3(1.0, 0.998, 0.99) * specular * uShine * 0.055;
+  float specular = ggx(n, h, t, b, uRoughness * 1.7 + 0.10, uAniso) * lit;
+  foil += vec3(1.0, 0.998, 0.99) * specular * uShine * 0.22;
 
   // Print edge: the white overprint sits a hair above the exposed foil.
   float ink = (1.0 - smoothstep(0.0, 2.0, -d)) * step(0.5, uBorderMode);
@@ -431,9 +439,9 @@ void main() {
       // highlight so it belongs to the same physical object.
       vec3 stock = vec3(0.82, 0.818, 0.800);
       borderColor = stock * (0.84 + envLuma * 0.13);
-      borderColor += vec3(1.0) * specular * uShine * 0.006;
+      borderColor += vec3(1.0) * specular * uShine * 0.035;
     } else if (uBorderMode < 2.5) {
-      borderColor = metal * 0.97 + vec3(1.0) * specular * uShine * 0.030;
+      borderColor = metal * 0.97 + vec3(1.0) * specular * uShine * 0.16;
     } else {
       borderColor = foil;
     }

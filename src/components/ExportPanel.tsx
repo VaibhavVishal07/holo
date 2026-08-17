@@ -165,7 +165,7 @@ export function ExportPanel() {
               </div>
 
               <p className="popover-summary">
-                PNG · {size.width} × {size.height} · current tilt
+                {still.error ?? `PNG · ${size.width} × ${size.height} · current tilt`}
               </p>
 
               <button

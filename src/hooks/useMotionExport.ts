@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { addAfterEffect } from '@react-three/fiber'
 import { motionHandle } from '../scene/handle'
 import { tightFrame } from './useExport'
+import { exportFilename, saveFile } from '../lib/saveFile'
 
 /**
  * Three seconds of the material moving, recorded straight off the live canvas.
@@ -241,14 +242,11 @@ export function useMotionExport() {
       stream.getTracks().forEach((track) => track.stop())
 
       const extension = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'
-      const blob = new Blob(chunks, { type: mimeType })
-      const stem = label.replace(/\.[a-z0-9]+$/i, '').replace(/[^a-z0-9-_]+/gi, '-')
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `${stem || 'holo'}-holo.${extension}`
-      link.click()
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      try {
+        await saveFile(new Blob(chunks, { type: mimeType }), exportFilename(label, extension))
+      } catch (cause) {
+        setError(cause instanceof Error && cause.message ? cause.message : 'Export failed')
+      }
 
       active.current = false
       setRecording(false)

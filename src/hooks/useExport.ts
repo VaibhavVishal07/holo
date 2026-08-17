@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import * as THREE from 'three'
 import { sceneHandle } from '../scene/handle'
+import { exportFilename, saveFile } from '../lib/saveFile'
 import { BORDER_UNIT_PX } from '../scene/materials'
 import { backgroundById, useStore } from '../state/store'
 
@@ -137,24 +138,10 @@ export function tightFrame(includeShadow = false): Frame | null {
   }
 }
 
-function download(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  // Give the click a tick to be picked up before the URL goes away.
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
-function filename(label: string) {
-  const stem = label.replace(/\.[a-z0-9]+$/i, '').replace(/[^a-z0-9-_]+/gi, '-')
-  return `${stem || 'holo'}-holo.png`
-}
-
 export function useExport() {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const run = useCallback(async () => {
     const handle = sceneHandle.current
@@ -167,6 +154,7 @@ export function useExport() {
     const opaque = !transparent && background.color !== null
 
     setBusy(true)
+    setError(null)
 
     const frame = tightFrame(opaque)
     if (!frame) {
@@ -225,9 +213,11 @@ export function useExport() {
       gl.readRenderTargetPixels(target, 0, 0, outWidth, outHeight, pixels)
 
       const blob = await encodePng(pixels, outWidth, outHeight)
-      download(blob, filename(state.artwork.label))
+      await saveFile(blob, exportFilename(state.artwork.label, 'png'))
       setDone(true)
       setTimeout(() => setDone(false), 1800)
+    } catch (cause) {
+      setError(cause instanceof Error && cause.message ? cause.message : 'Export failed')
     } finally {
       camera.clearViewOffset()
       gl.setRenderTarget(previousTarget)
@@ -239,7 +229,7 @@ export function useExport() {
     }
   }, [busy])
 
-  return { exportPng: run, busy, done }
+  return { exportPng: run, busy, done, error }
 }
 
 /**

@@ -11,6 +11,9 @@ import { drawDemoArtwork } from '../lib/demoArtwork'
 
 export type BorderMaterial = 'none' | 'white' | 'silver' | 'holo'
 
+/** Which group of controls the dock is showing. */
+export type DockTab = 'film' | 'light' | 'cut' | 'canvas'
+
 export interface Background {
   id: string
   name: string
@@ -34,30 +37,39 @@ export interface Settings {
   style: string
   holo: number
   shine: number
-  texture: number
+  /** Multiplies the style's own laminate strength. */
+  glass: number
+  depth: number
   /** Die-cut width in interface units, 0–40. */
   border: number
   borderMaterial: BorderMaterial
   background: string
-  auto: boolean
-  /** Advanced. */
-  spectrum: number
-  depth: number
   shadow: number
+  auto: boolean
+  /** Light position in the studio, -1..1 on each axis. */
+  lightX: number
+  lightY: number
+  /** How grazing the light is: 0 head-on, 1 raking across the surface. */
+  lightAngle: number
+  /** While true the light tracks the pointer instead of the placed position. */
+  lightFollow: boolean
 }
 
 export const DEFAULTS: Settings = {
   style: 'classic',
   holo: 0.85,
   shine: 0.6,
-  texture: 0.4,
+  glass: 0.55,
+  depth: 0.42,
   border: 7,
   borderMaterial: 'holo',
   background: 'black',
-  auto: false,
-  spectrum: 0.5,
-  depth: 0.42,
   shadow: 0.55,
+  auto: false,
+  lightX: 0.34,
+  lightY: 0.4,
+  lightAngle: 0.62,
+  lightFollow: true,
 }
 
 export interface ExportSettings {
@@ -75,11 +87,11 @@ interface State extends Settings {
   /** True while a hold-to-compare is active. */
   showOriginal: boolean
   exportSettings: ExportSettings
-  advancedOpen: boolean
+  tab: DockTab
 
   set: <K extends keyof Settings>(key: K, value: Settings[K]) => void
   setExport: (patch: Partial<ExportSettings>) => void
-  setAdvancedOpen: (open: boolean) => void
+  setTab: (tab: DockTab) => void
   setShowOriginal: (show: boolean) => void
   loadDemo: () => void
   loadFile: (file: File) => Promise<void>
@@ -100,12 +112,12 @@ export const useStore = create<State>((set, get) => ({
   error: null,
   showOriginal: false,
   exportSettings: { scale: 2, transparent: true },
-  advancedOpen: false,
+  tab: 'film',
 
   set: (key, value) => set({ [key]: value } as Partial<State>),
   setExport: (patch) =>
     set((s) => ({ exportSettings: { ...s.exportSettings, ...patch } })),
-  setAdvancedOpen: (advancedOpen) => set({ advancedOpen }),
+  setTab: (tab) => set({ tab }),
   setShowOriginal: (showOriginal) => set({ showOriginal }),
 
   loadDemo: () => {
@@ -149,7 +161,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   /** Aesthetic settings only. The artwork stays. */
-  reset: () => set({ ...DEFAULTS, advancedOpen: false }),
+  reset: () => set({ ...DEFAULTS }),
 
   dismissError: () => set({ error: null }),
 }))

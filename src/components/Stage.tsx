@@ -15,13 +15,16 @@ export function Stage({ onUpload }: Props) {
   const artwork = useStore((s) => s.artwork)
   const isDemo = useStore((s) => s.isDemo)
   const auto = useStore((s) => s.auto)
+  const lightX = useStore((s) => s.lightX)
+  const lightY = useStore((s) => s.lightY)
+  const lightFollow = useStore((s) => s.lightFollow)
   const busy = useStore((s) => s.busy)
   const error = useStore((s) => s.error)
   const dismissError = useStore((s) => s.dismissError)
   const background = backgroundById(useStore((s) => s.background))
   const reduceMotion = usePrefersReducedMotion()
 
-  const engine = useTilt(surface, { auto, reduceMotion })
+  const engine = useTilt(surface, { auto, reduceMotion, lightX, lightY, lightFollow })
 
   // A new artwork gets a new entry animation.
   const entryKey = useRef(0)

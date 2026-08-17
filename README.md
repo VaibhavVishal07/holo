@@ -139,19 +139,37 @@ those missing frames are the seam.
 ## The interface
 
 A dark studio with one instrument in it. The canvas is the room; the dock is a
-piece of equipment sitting in it — a defined surface, a hairline, internal
-dividers, micro-labels and live numeric values. Nothing is a card, nothing
-floats, and the only accent is white, because the sticker supplies the colour.
+piece of equipment sitting in it. Three rows: the style rail, a tab bar, and the
+active group. The rail stays out because choosing the film is the first decision
+and the one people return to; everything else is grouped by what it acts on and
+shown one group at a time, which is what lets the tool carry this many controls
+without reading as a form. The body holds a fixed height so switching groups never
+makes the panel jump under the pointer.
+
+Nothing is a card, nothing floats, and the only accent is white, because the
+sticker supplies the colour.
 
 Sliders draw their own track, fill and knob so they can carry a visible value and
 a real hit area, with the native input over the top at zero opacity — keyboard
 stepping and assistive behaviour stay native rather than reimplemented.
 
+**The light.** Two sliders would technically place a light, but a light has a
+position and the control for a position is a position, so it is an XY pad. The dot
+is also a live readout: while the light is tracking the pointer you can watch it
+travel and see what the material is responding to. That readout runs off the render
+loop and writes to the DOM, never to React — a light that moves every frame must
+not cost a render every frame. Placing the light by hand pins it, because that is
+plainly what the gesture means; `Follow pointer` hands it back.
+
+`Angle` is the most consequential light parameter in this shader rather than a
+cosmetic one: the half-angle decides which wavelengths can reach the eye at all, so
+raking the light widens the spectrum on offer.
+
 ## Layout
 
 ```
 src/
-  components/   Stage, Dock, StyleRail, Slider, ExportPanel
+  components/   Stage, Dock, StyleRail, Slider, LightPad, ExportPanel
   hooks/        useTilt, useExport, useMotionExport
   lib/          artwork (decode + mask), edt (distance field), contour, demoArtwork
   materials/    styles

@@ -39,3 +39,11 @@ export interface MotionHandle {
 }
 
 export const motionHandle: { current: MotionHandle | null } = { current: null }
+
+/**
+ * The live light position, for the control that shows it. Read from a frame loop
+ * and written straight to the DOM, so watching the light move costs no renders.
+ */
+export const lightHandle: { current: { x: number; y: number } | null } = {
+  current: null,
+}

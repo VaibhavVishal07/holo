@@ -14,7 +14,7 @@ import {
   createShadowMaterial,
 } from './materials'
 import { buildStickerGeometry, sheetThickness } from './stickerGeometry'
-import { motionHandle, sceneHandle } from './handle'
+import { lightHandle, motionHandle, sceneHandle } from './handle'
 
 /** Fraction of the shorter viewport axis the artwork should occupy. */
 const FILL = 0.80
@@ -87,6 +87,8 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
   useLayoutEffect(() => {
     if (!root.current || !tilt.current || !shadow.current) return
     motionHandle.current = { canvas: gl.domElement, override: null }
+    // Seeded neutral; the frame loop below owns it from the first frame on.
+    lightHandle.current = { x: 0.34, y: 0.4 }
     sceneHandle.current = {
       gl,
       scene,
@@ -100,6 +102,7 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     return () => {
       sceneHandle.current = null
       motionHandle.current = null
+      lightHandle.current = null
     }
   }, [gl, scene, camera, planeWidth, planeHeight])
 
@@ -124,6 +127,10 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     const rotY = scripted ? scripted.rotY : engine.rotY
     const lightX = scripted ? scripted.lightX : engine.lightX
     const lightY = scripted ? scripted.lightY : engine.lightY
+    if (lightHandle.current) {
+      lightHandle.current.x = lightX
+      lightHandle.current.y = lightY
+    }
 
     if (tilt.current) {
       tilt.current.rotation.x = rotX
@@ -137,7 +144,10 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     }
 
     const u = holoMaterial.uniforms
-    lightWorld.set(lightX * 2.8, lightY * 2.8, 1.6)
+    // Angle decides how grazing the light is, which is the single most
+    // consequential light parameter here: the half-angle sets which wavelengths
+    // can reach the eye at all, so raking the light widens the spectrum on offer.
+    lightWorld.set(lightX * 2.8, lightY * 2.8, 3.4 - s.lightAngle * 2.5)
     u.uLight.value.copy(lightWorld)
     u.uCamera.value.copy(camera.position)
 
@@ -156,17 +166,17 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     u.uOpacity.value = appear
     u.uHolo.value = s.holo * blend.get('holoScale')
     u.uShine.value = s.shine * blend.get('shineScale')
-    u.uTexture.value = s.texture
+    // Grain follows the film's own facet character rather than a separate control.
+    u.uTexture.value = 0.22 + blend.get('facet') * 0.34
     u.uSaturation.value = blend.get('saturation')
     u.uPearl.value = blend.get('pearl')
-    u.uGlass.value = blend.get('glass')
+    // The style sets the film's own laminate; the slider scales it.
+    u.uGlass.value = blend.get('glass') * (0.35 + s.glass * 1.45)
     u.uDispersion.value = blend.get('dispersion')
     u.uSparkle.value = blend.get('sparkle')
     u.uPeriod.value = blend.get('period')
     u.uPeriodVar.value = blend.get('periodVar')
-    // Spectrum rides on the preset's own band count rather than replacing it, so
-    // a film keeps its character across the whole range.
-    u.uFlow.value = blend.get('flow') * (0.5 + s.spectrum * 1.3)
+    u.uFlow.value = blend.get('flow')
     u.uSwirl.value = blend.get('swirl')
     u.uCoverage.value = blend.get('coverage')
     u.uRoughness.value = blend.get('roughness')

@@ -391,12 +391,135 @@ button {
   margin-left: auto;
 }
 
+/* --- tabs ----------------------------------------------------------------- */
+
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-block: 9px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  transition: color 160ms var(--ease), background-color 160ms var(--ease);
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--ink);
+  background: var(--panel-raised);
+}
+
+/* Held so switching groups never resizes the panel under the pointer. */
+.dock-body {
+  min-height: 74px;
+  display: flex;
+  align-items: center;
+}
+
+.dock-body > * {
+  width: 100%;
+  min-width: 0;
+}
+
+/* --- light ---------------------------------------------------------------- */
+
+.light-row {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.light-pad {
+  position: relative;
+  width: 74px;
+  height: 74px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel-raised);
+  cursor: crosshair;
+  touch-action: none;
+  flex: none;
+}
+
+.light-pad-cross {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(var(--hairline) 0 0) no-repeat 50% 50% / 1px 100%,
+    linear-gradient(var(--hairline) 0 0) no-repeat 50% 50% / 100% 1px;
+}
+
+.light-pad-dot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 3px var(--panel-raised);
+}
+
+/* Real inputs, kept for keyboard and assistive use; the pad is the pointer
+   affordance over them. */
+.light-pad-axis {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.light-pad-axis:focus-visible {
+  opacity: 1;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+}
+
+.light-pad:focus-within {
+  border-color: var(--ink);
+}
+
+.light-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.light-follow {
+  display: flex;
+}
+
+/* --- cut and canvas groups ------------------------------------------------ */
+
+.cut-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 /* --- sliders -------------------------------------------------------------- */
 
 .slider-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 30px;
+  gap: 9px 30px;
   min-width: 0;
 }
 
@@ -528,16 +651,9 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  margin-top: 11px;
 }
 
 /* --- canvas row ----------------------------------------------------------- */
-
-.utility-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
 
 .backgrounds {
   display: flex;
@@ -575,6 +691,11 @@ button {
   gap: 16px;
   align-items: center;
   margin-left: auto;
+}
+
+.backgrounds {
+  display: flex;
+  gap: 8px;
 }
 
 /* --- advanced ------------------------------------------------------------- */
@@ -779,11 +900,25 @@ button {
     gap: 10px;
   }
 
-  /* Below about 380px the canvas swatches and the three actions cannot share a
-     line. Wrapping keeps both labelled instead of dropping one. */
-  .utility-row {
+  .tab-bar {
     flex-wrap: wrap;
-    row-gap: 12px;
+    row-gap: 10px;
+  }
+
+  .tabs {
+    gap: 2px;
+  }
+
+  .tab {
+    padding: 5px 8px;
+  }
+
+  .light-row {
+    gap: 16px;
+  }
+
+  .dock-body {
+    min-height: 0;
   }
 
   .popover {

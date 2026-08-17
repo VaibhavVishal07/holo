@@ -25,6 +25,10 @@ const IDLE_AFTER = 1.5
 export interface TiltInput {
   auto: boolean
   reduceMotion: boolean
+  /** Where the light sits when it is not tracking the pointer, -1..1. */
+  lightX: number
+  lightY: number
+  lightFollow: boolean
 }
 
 export class TiltEngine {
@@ -35,6 +39,10 @@ export class TiltEngine {
 
   auto = false
   reduceMotion = false
+  /** The placed light position, used when `lightFollow` is off. */
+  placedLightX = 0.34
+  placedLightY = 0.4
+  lightFollow = true
 
   /** Pointer in sticker-relative units: x right, y up, roughly -1..1. */
   private px = 0
@@ -147,10 +155,16 @@ export class TiltEngine {
     this.rotX += this.velX * step
     this.rotY += this.velY * step
 
-    // The light lives on its own mapping and its own, slacker spring. Offset so
-    // the key never sits exactly where the cursor is.
-    const lightTargetX = 0.34 + (this.hovering ? this.px * 0.72 : 0) + this.rotY * 0.9
-    const lightTargetY = 0.66 + (this.hovering ? this.py * 0.5 : 0) - this.rotX * 0.9
+    // The light lives on its own mapping and its own, slacker spring. When it
+    // tracks the pointer the mapping is offset, so the key never sits exactly
+    // where the cursor is; when it has been placed by hand, the placed position is
+    // authoritative and only the object's own rotation still moves it.
+    const lightTargetX = this.lightFollow
+      ? 0.34 + (this.hovering ? this.px * 0.72 : 0) + this.rotY * 0.9
+      : this.placedLightX + this.rotY * 0.5
+    const lightTargetY = this.lightFollow
+      ? 0.66 + (this.hovering ? this.py * 0.5 : 0) - this.rotX * 0.9
+      : this.placedLightY - this.rotX * 0.5
     const lk = 34
     const ld = 9.4
     this.lightVelX += (lk * (lightTargetX - this.lightX) - ld * this.lightVelX) * step
@@ -187,6 +201,9 @@ export function useTilt(
 
   engine.auto = input.auto
   engine.reduceMotion = input.reduceMotion
+  engine.placedLightX = input.lightX
+  engine.placedLightY = input.lightY
+  engine.lightFollow = input.lightFollow
 
   useEffect(() => {
     const el = targetRef.current

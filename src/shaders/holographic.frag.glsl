@@ -468,7 +468,7 @@ void main() {
   // at the eye it stops throwing white, so the silver has to give way.
   vec3 foil = mix(
     metal,
-    metal * 0.10 + spectrum * min(1.48, 0.56 + envLuma * 0.98),
+    metal * 0.08 + spectrum * min(1.66, 0.64 + envLuma * 1.06),
     diffraction
   );
 
@@ -518,7 +518,7 @@ void main() {
 
   // Streaks and glints last, over everything. These are reflections off the top
   // of the laminate, so no amount of colour underneath dims them.
-  color += highlights * (0.45 + uGlass * 1.9) * (0.45 + uShine * 0.9);
+  color += highlights * (0.55 + uGlass * 2.1) * (0.45 + uShine * 0.95);
 
   color = shoulder(color);
 

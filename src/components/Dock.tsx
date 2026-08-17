@@ -15,47 +15,79 @@ export function Dock() {
 
   return (
     <div className="dock">
-      <div className="dock-inner">
-        <MaterialRail />
-
-        <div className="slider-row">
-          <Slider label="Holo" value={s.holo} onChange={(v) => set('holo', v)} />
-          <Slider label="Shine" value={s.shine} onChange={(v) => set('shine', v)} />
-          <Slider label="Texture" value={s.texture} onChange={(v) => set('texture', v)} />
+      <div className="dock-panel">
+        <div className="dock-row">
+          <MaterialRail />
         </div>
 
-        <div className="border-row">
-          <Slider
-            label="Border"
-            value={s.border}
-            min={0}
-            max={40}
-            step={1}
-            onChange={(v) => set('border', v)}
-            format={(v) => `${v}`}
-          />
-          <div
-            className="choices"
-            role="radiogroup"
-            aria-label="Border material"
-            style={{ opacity: s.border === 0 ? 0.35 : 1 }}
-          >
-            {BORDER_MATERIALS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                role="radio"
-                className="choice"
-                aria-checked={option.id === s.borderMaterial}
-                onClick={() => set('borderMaterial', option.id)}
-              >
-                {option.name}
-              </button>
-            ))}
+        <div className="dock-row">
+          <div className="slider-grid">
+            <Slider label="Holo" value={s.holo} onChange={(v) => set('holo', v)} />
+            <Slider label="Shine" value={s.shine} onChange={(v) => set('shine', v)} />
+            <Slider label="Texture" value={s.texture} onChange={(v) => set('texture', v)} />
+            <Slider
+              label="Border"
+              value={s.border}
+              min={0}
+              max={40}
+              step={1}
+              onChange={(v) => set('border', v)}
+              format={(v) => String(v)}
+            />
+          </div>
+
+          <div className="border-line">
+            <span className="micro">Die cut</span>
+            <div
+              className="choices"
+              role="radiogroup"
+              aria-label="Border material"
+              style={{ opacity: s.border === 0 ? 0.4 : 1 }}
+            >
+              {BORDER_MATERIALS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  className="choice"
+                  aria-checked={option.id === s.borderMaterial}
+                  onClick={() => set('borderMaterial', option.id)}
+                >
+                  {option.name}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="utility-row">
+        {s.advancedOpen && (
+          <div className="dock-row advanced">
+            <div className="slider-grid">
+              <Slider
+                label="Spectrum"
+                value={s.spectrum}
+                onChange={(v) => set('spectrum', v)}
+              />
+              <Slider label="Depth" value={s.depth} onChange={(v) => set('depth', v)} />
+              <Slider label="Shadow" value={s.shadow} onChange={(v) => set('shadow', v)} />
+            </div>
+            <div className="advanced-actions">
+              <button
+                type="button"
+                className="action"
+                data-quiet={!s.invert}
+                aria-pressed={s.invert}
+                disabled={s.busy}
+                onClick={() => void s.toggleInvert()}
+              >
+                Invert mask
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="dock-row utility-row">
+          <span className="micro">Canvas</span>
           <div className="backgrounds" role="radiogroup" aria-label="Background">
             {BACKGROUNDS.map((option) => (
               <button
@@ -95,28 +127,6 @@ export function Dock() {
             </button>
           </div>
         </div>
-
-        {s.advancedOpen && (
-          <div className="advanced">
-            <Slider
-              label="Spectrum"
-              value={s.spectrum}
-              onChange={(v) => set('spectrum', v)}
-            />
-            <Slider label="Depth" value={s.depth} onChange={(v) => set('depth', v)} />
-            <Slider label="Shadow" value={s.shadow} onChange={(v) => set('shadow', v)} />
-            <button
-              type="button"
-              className="action"
-              data-quiet={!s.invert}
-              aria-pressed={s.invert}
-              disabled={s.busy}
-              onClick={() => void s.toggleInvert()}
-            >
-              Invert
-            </button>
-          </div>
-        )}
       </div>
     </div>
   )

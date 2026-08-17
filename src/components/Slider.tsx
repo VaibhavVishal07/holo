@@ -5,10 +5,16 @@ interface Props {
   max?: number
   step?: number
   onChange: (value: number) => void
-  /** Announced to assistive tech, since the numeric value is not shown. */
+  /** How the number reads next to the track. Defaults to a percentage. */
   format?: (value: number) => string
 }
 
+/**
+ * Track, fill and knob are drawn by the wrapper so the control can carry a
+ * visible value and a proper hit area; the native input sits over it at zero
+ * opacity, which keeps keyboard stepping and assistive behaviour native rather
+ * than reimplemented.
+ */
 export function Slider({
   label,
   value,
@@ -18,19 +24,29 @@ export function Slider({
   onChange,
   format,
 }: Props) {
-  const percent = Math.round(((value - min) / (max - min)) * 100)
+  const fill = ((value - min) / (max - min)) * 100
+  const display = format ? format(value) : String(Math.round(fill))
+
   return (
     <label className="slider">
       <span className="slider-label">{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        aria-valuetext={format ? format(value) : `${percent}%`}
-        onChange={(event) => onChange(Number(event.target.value))}
-      />
+      <span className="slider-track" style={{ ['--fill' as string]: fill }}>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          aria-label={label}
+          aria-valuetext={display}
+          onChange={(event) => onChange(Number(event.target.value))}
+        />
+        <span className="slider-fill" aria-hidden="true" />
+        <span className="slider-knob" aria-hidden="true" />
+      </span>
+      <span className="slider-value" aria-hidden="true">
+        {display}
+      </span>
     </label>
   )
 }

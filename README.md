@@ -7,6 +7,9 @@ holographic vinyl — die-cut, tiltable, and exportable at the exact angle where
 the light looks right. Everything happens in the browser; the image never leaves
 the device.
 
+It opens on a dark canvas, because the material is a reflective object and reads
+best against a room darker than itself.
+
 ```
 npm install
 npm run dev
@@ -31,6 +34,18 @@ geometry changed — the reflection is not an animation running alongside the
 object. Away from the angles where a visible wavelength happens to land, the
 surface keeps reflecting the room, which is why most of it stays chrome.
 
+**The film is coherent.** On real rainbow foil the spectrum sweeps across the
+whole piece in broad continuous bands — pink into peach into mint into lilac —
+and slides into mirror silver where the angle stops diffracting. It does not
+break into patches with edges. So every field feeding the wavelength is
+deliberately low frequency and domain-warped: plain low-frequency noise has
+iso-contours that run close to straight across one cell, which came out as
+parallel stripes, and warping the lookup makes the bands curl and wrap the way
+they do on film. Anything finer than this — a third octave, a quantised
+orientation, micro-roughness reaching the wavelength — makes colour jump between
+neighbouring pixels as the object turns, which reads as a broken effect rather
+than a material.
+
 Several decisions in there exist because the obvious version looked wrong:
 
 - **First order dominates.** Giving higher orders real weight superimposes red on
@@ -42,19 +57,14 @@ Several decisions in there exist because the obvious version looked wrong:
 - **Hue is normalised, intensity is not.** Summed orders otherwise average toward
   white and the whole film goes pastel. A small white pedestal stays, because
   real foil is never a pure spectral primary.
-- **The agreement term is squared and then heavily overdriven.** A gentler factor
-  spreads a thin wash of colour over the entire sticker; the mean is the same but
-  a uniformly tinted sticker is not what foil looks like. Concentration is the
-  point.
-- **Where the film can diffract is anisotropic; the pitch is not.** Elongating
-  the coverage field along the grooves gives colour its drawn-out shapes.
-  Elongating the pitch field too makes the spectrum sweep inside a single patch,
-  and the result reads as airbrushed rainbow strokes.
+- **Pitch varies widely.** That swing is what pushes whole regions of the sheet
+  outside the visible band, and those regions are the chrome between the sweeps.
+  Without it the whole sticker carries colour at once.
+- **Pearl is a separate control from saturation.** Soft pastel stationery foil
+  carries a lot of white under the spectrum; saturated rainbow chrome carries
+  almost none. It is the knob that calibrates a preset against real film.
 - **Two normals.** The grating follows the vinyl's real shape; grain and brushing
   are finer than the grating and only scatter the specular.
-
-Roughly 15–20% of the surface carries colour at a typical angle, with a mean
-brightness around 200/255 — silver first, hotspots second.
 
 ## The die cut
 
@@ -99,6 +109,17 @@ whole cycles of one period so the clip loops, and the closing pose is held brief
 because the encoder does not reliably receive the last few frames before a stop —
 those missing frames are the seam.
 
+## The interface
+
+A dark studio with one instrument in it. The canvas is the room; the dock is a
+piece of equipment sitting in it — a defined surface, a hairline, internal
+dividers, micro-labels and live numeric values. Nothing is a card, nothing
+floats, and the only accent is white, because the sticker supplies the colour.
+
+Sliders draw their own track, fill and knob so they can carry a visible value and
+a real hit area, with the native input over the top at zero opacity — keyboard
+stepping and assistive behaviour stay native rather than reimplemented.
+
 ## Layout
 
 ```
@@ -116,8 +137,8 @@ src/
 
 - Satoshi is served from `public/fonts/` as a variable font.
 - The seven presets differ in base metal, studio, grating pitch, pitch variance,
-  domain orientation spread, coverage, specular roughness and anisotropy, facet
-  strength and spectral bias — not just in colour.
+  band count, orientation drift, pearl, film strength, specular roughness and
+  anisotropy, and spectral bias — not just in colour.
 - Switching material interpolates every parameter rather than cutting.
 - `prefers-reduced-motion` disables the idle drift and the Auto oscillation;
   direct manipulation still responds.

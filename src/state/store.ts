@@ -21,11 +21,12 @@ export interface Background {
 }
 
 export const BACKGROUNDS: Background[] = [
+  { id: 'black', name: 'Black', color: '#0A0A0B', dark: true },
+  { id: 'graphite', name: 'Graphite', color: '#232427', dark: true },
+  { id: 'grey', name: 'Grey', color: '#C9C9C4', dark: false },
   { id: 'bone', name: 'Off white', color: '#F1F0EC', dark: false },
   { id: 'white', name: 'White', color: '#FFFFFF', dark: false },
-  { id: 'grey', name: 'Grey', color: '#C9C9C4', dark: false },
-  { id: 'black', name: 'Black', color: '#121211', dark: true },
-  { id: 'none', name: 'Transparent', color: null, dark: false },
+  { id: 'none', name: 'Transparent', color: null, dark: true },
 ]
 
 export interface Settings {
@@ -50,8 +51,8 @@ export const DEFAULTS: Settings = {
   shine: 0.6,
   texture: 0.4,
   border: 7,
-  borderMaterial: 'white',
-  background: 'bone',
+  borderMaterial: 'holo',
+  background: 'black',
   auto: false,
   spectrum: 0.5,
   depth: 0.42,

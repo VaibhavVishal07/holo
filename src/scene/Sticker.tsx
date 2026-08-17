@@ -17,7 +17,7 @@ import {
 import { motionHandle, sceneHandle } from './handle'
 
 /** Fraction of the shorter viewport axis the artwork should occupy. */
-const FILL = 0.66
+const FILL = 0.80
 
 interface Props {
   artwork: Artwork
@@ -143,11 +143,12 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     u.uShine.value = s.shine * blend.get('shineScale')
     u.uTexture.value = s.texture
     u.uSaturation.value = blend.get('saturation')
+    u.uPearl.value = blend.get('pearl')
     u.uPeriod.value = blend.get('period')
     u.uPeriodVar.value = blend.get('periodVar')
-    // The Spectrum control rides on the preset's own pattern scale rather than
-    // replacing it, so a film keeps its character across the whole range.
-    u.uPatternScale.value = blend.get('patternScale') * (0.45 + s.spectrum * 1.5)
+    // Spectrum rides on the preset's own band count rather than replacing it, so
+    // a film keeps its character across the whole range.
+    u.uFlow.value = blend.get('flow') * (0.5 + s.spectrum * 1.3)
     u.uSwirl.value = blend.get('swirl')
     u.uCoverage.value = blend.get('coverage')
     u.uRoughness.value = blend.get('roughness')

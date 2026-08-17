@@ -21,7 +21,7 @@ import { useStore } from '../state/store'
  * because the material shimmers.
  */
 
-const SWATCH = 27
+const SWATCH = 30
 const GAP = 10
 
 let discArtwork: Artwork | null = null
@@ -51,6 +51,7 @@ export function MaterialRail() {
 
   return (
     <div className="rail">
+      <span className="micro">Material</span>
       <div
         className="rail-swatches"
         role="radiogroup"
@@ -150,13 +151,13 @@ function Disc({ preset, textures, index, planeSize }: DiscProps) {
     u.uShine.value = 0.55 * blend.get('shineScale')
     u.uTexture.value = 0.4
     u.uSaturation.value = blend.get('saturation')
+    u.uPearl.value = blend.get('pearl')
     u.uPeriod.value = blend.get('period')
     u.uPeriodVar.value = blend.get('periodVar')
-    // A 27px disc can only show two or three patches before the pattern turns
-    // into noise, so the domains are scaled up rather than reproduced literally.
-    u.uPatternScale.value = blend.get('patternScale') * 0.30
+    // A 27px disc can only carry one sweep before the bands turn into noise.
+    u.uFlow.value = blend.get('flow') * 0.42
     u.uSwirl.value = blend.get('swirl')
-    u.uCoverage.value = Math.min(1, blend.get('coverage') * 1.2)
+    u.uCoverage.value = blend.get('coverage') * 1.15
     u.uRoughness.value = blend.get('roughness')
     u.uAniso.value = blend.get('aniso')
     u.uFacet.value = blend.get('facet')

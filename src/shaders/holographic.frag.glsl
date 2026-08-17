@@ -6,12 +6,20 @@
 // wavelength reflects from the light towards the eye. Everywhere else the
 // surface keeps reflecting the room, which is why most of it stays chrome.
 //
+// The film is COHERENT. On real rainbow foil the spectrum sweeps across the
+// whole piece in broad continuous bands — pink into peach into mint into lilac —
+// and slides into mirror silver where the angle stops diffracting. It does not
+// break into patches with edges. So every field that feeds the wavelength here
+// is deliberately low frequency: a stepped or high-frequency field makes colour
+// jump between neighbouring pixels as the object turns, which reads as a broken
+// effect rather than a material.
+//
 // Per fragment:
 //   1. read the signed distance field, resolve artwork / border / outside
-//   2. build a surface normal: lazy vinyl undulation, foil facets, brushing, grain
+//   2. build two normals: the sheet's shape, and the finer roughness on top
 //   3. reflect the room into it -> the metal
 //   4. solve the grating equation against the half-vector -> the spectrum
-//   5. add one broad specular lobe -> the wet gloss
+//   5. add the gloss -> the wet sheen
 // ---------------------------------------------------------------------------
 
 layout(location = 0) out vec4 fragColor;
@@ -43,14 +51,15 @@ uniform vec3 uSpectralBias;  // per-channel weighting of the spectrum
 uniform float uKey;
 uniform float uFill;
 uniform float uHolo;         // diffraction strength
-uniform float uShine;        // specular strength
+uniform float uShine;        // gloss strength
 uniform float uTexture;      // grain + brushing amount
 uniform float uSaturation;
+uniform float uPearl;        // how much white sits under the spectrum
 uniform float uPeriod;       // grating pitch, micrometres
 uniform float uPeriodVar;
-uniform float uPatternScale;
-uniform float uSwirl;        // how far the grating orientation wanders
-uniform float uCoverage;     // fraction of the surface that can diffract at all
+uniform float uFlow;         // how many band sweeps cross the artwork
+uniform float uSwirl;        // how far the grating orientation drifts
+uniform float uCoverage;     // overall strength of the film
 uniform float uRoughness;
 uniform float uAniso;
 uniform float uFacet;
@@ -104,18 +113,11 @@ vec3 fbmd(vec2 p) {
 }
 
 /**
- * Three-octave fbm. Each octave is rotated as well as scaled: without that, the
- * value-noise lattices stack up and the diffraction patches read as
- * axis-aligned blocks once the field is pushed for contrast.
+ * Smooth two-octave field. Everything that decides a wavelength uses this and
+ * nothing finer — a third octave is already enough to make the bands grainy.
  */
-float fbm3(vec2 p) {
-  const mat2 turn = mat2(0.80, 0.60, -0.60, 0.80);
-  float v = noise(p) * 0.54;
-  p = turn * p * 2.17 + 5.2;
-  v += noise(p) * 0.30;
-  p = turn * p * 2.03 + 11.3;
-  v += noise(p) * 0.16;
-  return v;
+float fbm2(vec2 p) {
+  return noise(p) * 0.68 + noise(p * 2.13 + 4.7) * 0.32;
 }
 
 // --- spectrum ---------------------------------------------------------------
@@ -140,15 +142,17 @@ vec3 spectral(float nm) {
 }
 
 /**
- * Rolls the spectrum off at both ends of vision instead of clipping it.
+ * Rolls the spectrum off at both ends of vision instead of clipping it. The
+ * long ramps matter: this rolloff IS the transition from colour into mirror
+ * silver, and it should take a broad sweep of the surface to complete.
  *
- * The window is kept strictly inside `spectral`'s 400–700nm domain. If it reaches
- * past either end there is a band of wavelengths where the diffraction has energy
- * but the fit returns near-black, and that paints a grey rim around every patch of
- * colour on the sticker.
+ * The window is kept strictly inside `spectral`'s 400–700nm domain. If it
+ * reaches past either end there is a band of wavelengths where the diffraction
+ * has energy but the fit returns near-black, and that paints a grey rim around
+ * every region of colour.
  */
 float visible(float um) {
-  return smoothstep(0.402, 0.432, um) * (1.0 - smoothstep(0.662, 0.696, um));
+  return smoothstep(0.398, 0.452, um) * (1.0 - smoothstep(0.632, 0.698, um));
 }
 
 // --- the room ---------------------------------------------------------------
@@ -174,11 +178,11 @@ vec3 room(vec3 r) {
 
   vec3 c = mix(uEnvLow, uEnvHigh, smoothstep(-1.05, 0.30, p.y));
 
-  float key = softRect(p - vec2(-0.10, 0.62), vec2(0.85, 0.50), 0.34);
-  float fill = softRect(p - vec2(1.15, 0.02), vec2(0.24, 0.60), 0.30);
+  float key = softRect(p - vec2(-0.10, 0.62), vec2(0.85, 0.50), 0.40);
+  float fill = softRect(p - vec2(1.15, 0.02), vec2(0.24, 0.60), 0.34);
   float occluder = softRect(p - vec2(-0.50, -1.00), vec2(0.95, 0.70), 0.80);
 
-  c += vec3(1.0, 0.995, 0.982) * key * uKey * 0.62;
+  c += vec3(1.0, 0.995, 0.982) * key * uKey * 0.46;
   c += vec3(0.88, 0.94, 1.0) * fill * uFill * 0.60;
   c *= 1.0 - occluder * 0.24;
 
@@ -209,8 +213,8 @@ vec3 srgbToLinear(vec3 c) {
 
 /** Lets bright reflections approach white smoothly rather than clipping flat. */
 vec3 shoulder(vec3 c) {
-  vec3 over = max(c - 0.78, 0.0);
-  return min(c, 0.78 + over / (1.0 + 5.0 * over));
+  vec3 over = max(c - 0.68, 0.0);
+  return min(c, 0.68 + over / (1.0 + 4.2 * over));
 }
 
 float sdfAt(vec2 uv) {
@@ -244,11 +248,13 @@ void main() {
   vec2 pUv = vUv * uPatternAspect;
 
   // Vinyl is never dead flat. This large, slow waviness is the single biggest
-  // reason the specular sweep looks handmade rather than computed.
-  vec3 wave = fbmd(pUv * 2.4 + 4.7);
-  // Foil facets: the crushed structure that scatters the rainbow into patches
-  // instead of bands.
-  vec3 facet = fbmd(pUv * 21.0 + 21.3);
+  // reason the specular sweep looks handmade rather than computed — and being
+  // slow is the point, since it also bends the wavelength field.
+  vec3 wave = fbmd(pUv * 1.9 + 4.7);
+  // Micro-roughness. This is finer than the grating, so it scatters the gloss
+  // but must not reach the wavelength — feeding it into the diffraction is what
+  // made the colour fizz from pixel to pixel.
+  vec3 facet = fbmd(pUv * 24.0 + 21.3);
   // Brushing runs along X, so the height varies across Y.
   float brush = noise(vec2(pUv.x * 46.0, pUv.y * 380.0)) - 0.5;
   float grain = noise(pUv * 640.0) - 0.5;
@@ -257,14 +263,12 @@ void main() {
   grain *= 1.0 - smoothstep(0.30, 0.85, fwidth(pUv.x) * 640.0);
   brush *= 1.0 - smoothstep(0.30, 0.85, fwidth(pUv.y) * 380.0);
 
-  // Two normals, because the film sits on the vinyl but the roughness sits on the
-  // film. The grating follows the sheet's real shape; grain and brushing are
-  // finer than the grating and only scatter the specular.
-  vec2 slopeMacro = wave.yz * (0.034 + uDepth * 0.056) + facet.yz * uFacet * 0.0020;
+  // Two normals: the shape of the sheet, and the roughness sitting on it.
+  vec2 slopeMacro = wave.yz * (0.030 + uDepth * 0.050);
   vec2 slopeMicro =
-    facet.yz * uFacet * 0.0038 +
-    vec2(grain * 0.6, grain) * uTexture * 0.013 +
-    vec2(0.0, brush) * uTexture * 0.007;
+    facet.yz * uFacet * 0.0022 +
+    vec2(grain * 0.6, grain) * uTexture * 0.007 +
+    vec2(0.0, brush) * uTexture * 0.005;
 
   // Bevel the die cut so the vinyl reads as having thickness once it turns. This
   // is real geometry, so it belongs to both normals.
@@ -275,7 +279,7 @@ void main() {
     sdfAt(vUv + vec2(0.0, uTexel.y)) - sdfAt(vUv - vec2(0.0, uTexel.y))
   );
   float gradLen = length(cutGrad);
-  if (gradLen > 1e-5) slopeMacro += (cutGrad / gradLen) * rim * 0.32;
+  if (gradLen > 1e-5) slopeMacro += (cutGrad / gradLen) * rim * 0.30;
 
   vec3 nMacro = normalize(n + t * slopeMacro.x + b * slopeMacro.y);
   n = normalize(nMacro + t * slopeMicro.x + b * slopeMicro.y);
@@ -294,7 +298,7 @@ void main() {
   // Restrained Fresnel: silver is already reflective everywhere, so this only
   // has to lift the grazing edges a little.
   float fresnel = pow(1.0 - ndv, 4.5);
-  vec3 metal = env * uBase * (1.0 + fresnel * 0.5) * (0.93 + facet.x * 0.15);
+  vec3 metal = env * uBase * (1.0 + fresnel * 0.5);
 
   // Gloss is mostly the reflected sources, not a point highlight. On a sheet this
   // flat, under a light this far off axis, a tight lobe never fires — so Shine has
@@ -305,136 +309,95 @@ void main() {
   metal *= 1.0 + sources * (uShine - 0.30) * 1.15;
 
   // --- diffraction ---
-  // The grating lives in the plane of the film, so the half-vector has to be
-  // resolved in the frame of the *perturbed* surface. This is the join that makes
-  // the effect physical: rotate the sticker, the frame rotates with it, and the
-  // wavelength that reaches the eye changes because the geometry changed.
+  // The grating lives in the plane of the film, so the half-vector is resolved in
+  // the frame of the sheet's own surface. This is the join that makes the effect
+  // physical: rotate the sticker, the frame rotates with it, and the wavelength
+  // that reaches the eye changes because the geometry changed.
   vec3 tl = normalize(t - nMacro * dot(nMacro, t));
   vec3 bl = cross(nMacro, tl);
   // In-plane length of the half-vector is the sine of the half angle, which is
   // exactly the term the grating equation needs.
   vec2 hp = vec2(dot(h, tl), dot(h, bl));
 
-  // Foil is a mosaic: the grating holds one orientation across a domain and then
-  // steps to another. Quantising the orientation field is what produces coherent
-  // patches of a single colour with definite boundaries. A continuous field
-  // instead sweeps the wavelength smoothly and the whole surface reads as
-  // airbrushed rainbow, which is the failure mode to avoid.
-  float raw = noise(pUv * 5.2) * 7.0;
-  float stepped = floor(raw) + smoothstep(0.40, 0.60, fract(raw));
-  float angle = (stepped / 7.0 - 0.5) * TAU * uSwirl;
+  // Grating orientation drifts, continuously and slowly. An earlier version
+  // quantised this into domains, which gave every region a crisp edge and made
+  // the colour step rather than sweep as the object moved.
+  vec2 warpSeed = vec2(fbm2(pUv * 1.1 + 31.0), fbm2(pUv * 1.1 + 41.0)) - 0.5;
+  float angle = (fbm2(pUv * uFlow * 0.5 + warpSeed) - 0.5) * TAU * uSwirl;
   vec2 g0 = vec2(cos(angle), sin(angle));
-  vec2 g1 = vec2(-g0.y, g0.x);
 
-  // Two fields, deliberately different in character.
+  // Pitch varies at the same low frequency. `uFlow` is literally how many band
+  // sweeps cross the artwork.
   //
-  // Where the film can diffract at all is elongated along the grooves, which is
-  // what gives the colour its directional, drawn-out shapes rather than round
-  // clouds. But the pitch — and therefore the hue — has to stay broad and
-  // isotropic, otherwise the spectrum sweeps within a single patch and the whole
-  // thing reads as airbrushed rainbow strokes instead of foil holding a colour.
-  vec2 domain = vec2(dot(pUv, g0) * 0.62, dot(pUv, g1) * 1.28);
-
-  float pitchNoise =
-    noise(pUv * 7.5) * 0.58 + noise(pUv * 17.0 + 4.1) * 0.28 + noise(pUv * 44.0 + 9.3) * 0.14;
-  float pitch = uPeriod * (1.0 + uPeriodVar * (pitchNoise - 0.5) * 2.0);
+  // The field is domain-warped first. Plain low-frequency noise has iso-contours
+  // that run close to straight across a single cell, so the spectrum came out as
+  // parallel stripes; warping the lookup makes the bands curl and wrap the way
+  // they do on real film.
+  vec2 warp = vec2(fbm2(pUv * 1.3 + 11.0), fbm2(pUv * 1.3 + 19.0)) - 0.5;
+  float pitchField = fbm2(pUv * uFlow + warp * 1.6 + 3.3);
+  float pitch = uPeriod * (1.0 + uPeriodVar * (pitchField - 0.5) * 2.0);
 
   float x0 = abs(dot(hp, g0));
-  float x1 = abs(dot(hp, g1));
 
-  vec3 spectrum = vec3(0.0);
-  float energy = 0.0;
+  float um = pitch * x0 + uLambdaShift;
+  float vis = visible(um);
+  vec3 spectrum = spectral(um * 1000.0) * vis;
+  float energy = vis;
 
-  // First order dominates by a wide margin. Higher orders are physically there
-  // but faint, and giving them real weight superimposes red on violet — which
-  // resolves to magenta, a colour no single grating can produce.
-  const vec3 ORDER_WEIGHT = vec3(1.0, 0.16, 0.06);
-  for (int m = 1; m <= 3; m++) {
-    float fm = float(m);
-    float um = pitch * x0 / fm + uLambdaShift;
-    float vis = visible(um);
-    if (vis < 0.001) continue;
-    float w = vis * ORDER_WEIGHT[m - 1];
-    spectrum += spectral(um * 1000.0) * w;
-    energy += w;
-  }
+  // Second order, faint. It only reaches the visible band at strong angles, where
+  // it lays a narrow secondary band beside the first.
+  float umSecond = pitch * x0 * 0.5 + uLambdaShift;
+  float visSecond = visible(umSecond) * 0.22;
+  spectrum += spectral(umSecond * 1000.0) * visSecond;
+  energy += visSecond;
 
-  // A weak crossed grating: enough to occasionally throw a second colour into a
-  // patch, not enough to average the first one away.
-  float umCross = pitch * 0.86 * x1 + uLambdaShift;
-  float visCross = visible(umCross);
-  if (visCross > 0.001) {
-    float w = visCross * 0.13;
-    spectrum += spectral(umCross * 1000.0) * w;
-    energy += w;
-  }
-
-  // Hue from the grating, intensity from the energy. Normalising here is what
-  // keeps the colour vivid: summed orders otherwise average towards white and
-  // the whole film goes pastel.
-  //
-  // A weak sum must not be normalised into a colour, and must not be allowed to
-  // contribute at all — a near-black spectrum stretched to unit peak is how a
-  // dark halo appears at the edge of a hotspot.
+  // Hue from the grating, intensity from the energy. Normalising keeps the colour
+  // from washing out where two orders overlap. A weak sum must not be normalised
+  // into a colour at all — a near-black spectrum stretched to unit peak is how a
+  // dark rim appears at the edge of a band.
   float peak = max(max(spectrum.r, spectrum.g), spectrum.b);
-  energy *= smoothstep(0.02, 0.07, peak);
+  energy *= smoothstep(0.02, 0.09, peak);
 
   if (peak > 1e-3) {
     spectrum /= peak;
 
-    // The film's bias shapes the hue and nothing else. Applied after the pedestal
-    // below it would tint that too, and every fragment with any diffraction at all
-    // would come out warm or cool — the film reads as uniformly coloured rather
-    // than as silver that catches a warm or cool spectrum. Renormalising after
-    // the bias keeps it from changing brightness either.
+    // The film's bias shapes the hue and nothing else. Applied after the pearl
+    // pedestal below it would tint that too, and every fragment with any
+    // diffraction at all would come out warm or cool — the film reads as
+    // uniformly coloured rather than as silver that catches a warm or cool
+    // spectrum. Renormalising after keeps it from changing brightness either.
     spectrum *= uSpectralBias;
     spectrum /= max(max(max(spectrum.r, spectrum.g), spectrum.b), 1e-3);
     spectrum = mix(vec3(dot(spectrum, vec3(0.3333))), spectrum, uSaturation);
 
-    // Foil is never a pure spectral primary: the grating is imperfect and there is
-    // always white specular underneath. This pedestal is what separates bright
-    // metal catching colour from a neon overlay.
-    spectrum = mix(vec3(1.0), spectrum, 0.92);
+    // Pearl: foil is never a pure spectral primary. There is always white
+    // specular under the grating, and how much decides whether the film reads as
+    // soft pastel stationery or as saturated rainbow chrome.
+    spectrum = mix(vec3(1.0), spectrum, 1.0 - uPearl);
   } else {
     spectrum = vec3(1.0);
   }
 
-  // Only part of the film is ever in a diffracting orientation. Two scales of
-  // patchiness — broad regions, then finer structure inside them — pushed for
-  // contrast, because averaging two fbms narrows the distribution and would
-  // otherwise leave the whole surface hovering around the threshold.
-  float patches =
-    fbm3(domain * uPatternScale) * 0.66 +
-    fbm3(domain * uPatternScale * 3.3 + 9.0) * 0.26 +
-    fbm3(domain * uPatternScale * 11.0 + 31.0) * 0.08;
-  patches = clamp((patches - 0.5) * 3.0 + 0.5, 0.0, 1.0);
-  float lo = 0.72 - uCoverage * 0.76;
-  float gate = smoothstep(lo, lo + 0.26, patches);
+  // How strongly the film diffracts, varying broadly and smoothly across the
+  // sheet. Smooth on purpose: a threshold here is what turns continuous bands
+  // into patches with edges.
+  float breadth = 0.45 + 0.55 * fbm2(pUv * uFlow * 0.7 + 7.1);
   // No light, no diffraction. Tying colour to the illuminated regions is what
-  // makes the rainbow travel with the reflection rather than sit on the artwork.
-  gate *= 0.22 + 0.78 * smoothstep(0.10, 0.58, envLuma);
+  // makes the spectrum travel with the reflection rather than sit on the artwork.
+  float illuminated = 0.28 + 0.72 * smoothstep(0.08, 0.58, envLuma);
 
-  // Squared, then overdriven. The square suppresses the broad low tail — which
-  // would otherwise lay a pale wash of colour across the whole sticker — while the
-  // gain lets the places where the gate and the grating actually agree saturate
-  // completely. Concentration is the point, not average intensity.
-  float agree = energy * gate;
-  float diffraction = clamp(agree * agree * uHolo * 56.0, 0.0, 1.0);
-  // One more push away from the middle. Partial diffraction over bright metal is
-  // what reads as washed-out pastel, so the mid range is thinned out in favour of
-  // committed colour and committed silver.
-  diffraction = smoothstep(0.04, 0.97, diffraction);
+  float diffraction =
+    clamp(energy * breadth * illuminated * uHolo * uCoverage * 1.85, 0.0, 1.0);
+
   // Diffracted light is redirected, not added: where the grating throws colour
   // at the eye it stops throwing white, so the silver has to give way.
   vec3 foil = mix(
     metal,
-    metal * 0.14 + spectrum * min(1.25, 0.55 + envLuma * 0.80),
+    metal * 0.14 + spectrum * min(1.12, 0.44 + envLuma * 0.74),
     diffraction
   );
 
   // --- gloss ---
-  // A broad lobe rather than a pinpoint. A flat sticker reflects the shape of the
-  // source, and the source here is a softbox.
   float specular = ggx(n, h, t, b, uRoughness * 1.7 + 0.10, uAniso) * lit;
   foil += vec3(1.0, 0.998, 0.99) * specular * uShine * 0.22;
 

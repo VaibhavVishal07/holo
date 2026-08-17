@@ -19,6 +19,13 @@ const MAX_HOVER_Y = 11 * DEG
 /** Dragging can reach further than hovering, but not far enough to show the back. */
 const MAX_DRAG_X = 26 * DEG
 const MAX_DRAG_Y = 32 * DEG
+/**
+ * A phone's own tilt gets a wider range than a hovering cursor. Hovering is a
+ * hint at the object; tipping the device is a direct claim on it, and holding a
+ * piece of foil up to the light is exactly the gesture the range has to cover.
+ */
+const MAX_DEVICE_X = 18 * DEG
+const MAX_DEVICE_Y = 22 * DEG
 
 const IDLE_AFTER = 1.5
 
@@ -48,6 +55,8 @@ export class TiltEngine {
   private px = 0
   private py = 0
   private hovering = false
+  /** True while the pointer channel is being fed by the device's own tilt. */
+  private device = false
   private lastInput = -Infinity
 
   private velX = 0
@@ -68,10 +77,33 @@ export class TiltEngine {
     this.px = x
     this.py = y
     this.hovering = true
+    this.device = false
     this.lastInput = this.time
   }
 
   clearPointer() {
+    this.hovering = false
+    this.lastInput = this.time
+  }
+
+  /**
+   * The device's own tilt, in the same units as the pointer.
+   *
+   * It feeds the pointer channel deliberately, rather than getting a path of its
+   * own: the light, the springs and the idle handling then all behave exactly as
+   * they do under a cursor, and only the range widens.
+   */
+  setOrientation(x: number, y: number) {
+    this.px = clamp(x, -1.4, 1.4)
+    this.py = clamp(y, -1.4, 1.4)
+    this.hovering = true
+    this.device = true
+    this.lastInput = this.time
+  }
+
+  clearOrientation() {
+    if (!this.device) return
+    this.device = false
     this.hovering = false
     this.lastInput = this.time
   }
@@ -122,8 +154,10 @@ export class TiltEngine {
       targetX = this.dragX
       targetY = this.dragY
     } else {
-      const hoverX = this.hovering ? -this.py * MAX_HOVER_X : 0
-      const hoverY = this.hovering ? this.px * MAX_HOVER_Y : 0
+      const maxX = this.device ? MAX_DEVICE_X : MAX_HOVER_X
+      const maxY = this.device ? MAX_DEVICE_Y : MAX_HOVER_Y
+      const hoverX = this.hovering ? -this.py * maxX : 0
+      const hoverY = this.hovering ? this.px * maxY : 0
 
       // Never returns to a dead 0,0 — it drifts, the way a hand-held object does.
       const breatheX = this.reduceMotion ? 0 : this.breathe(0.31, 0.13, 0, 1.1, 1.05 * DEG)

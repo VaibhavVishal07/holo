@@ -328,49 +328,6 @@ button {
   white-space: nowrap;
 }
 
-/* --- shape rail ---------------------------------------------------------- */
-
-.rail {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-width: 0;
-}
-
-.rail-shapes {
-  display: flex;
-  gap: 6px;
-}
-
-.shape-swatch {
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  display: grid;
-  place-items: center;
-  color: var(--faint);
-  transition: color 160ms var(--ease), border-color 160ms var(--ease),
-    background-color 160ms var(--ease);
-}
-
-.shape-swatch svg {
-  width: 19px;
-  height: 19px;
-  display: block;
-}
-
-.shape-swatch:hover {
-  color: var(--muted);
-  border-color: var(--hairline);
-}
-
-.shape-swatch[aria-checked='true'] {
-  color: var(--ink);
-  border-color: var(--hairline-strong);
-  background: var(--panel-raised);
-}
-
 /* --- tabs ----------------------------------------------------------------- */
 
 .tab-bar {
@@ -498,7 +455,7 @@ button {
 
 .slider {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) 26px;
+  grid-template-columns: 52px minmax(0, 1fr) 32px;
   align-items: center;
   gap: 12px;
 }
@@ -543,6 +500,28 @@ button {
   width: calc(var(--fill) * 1%);
   background: var(--ink);
   opacity: 0.72;
+}
+
+/* A control whose value is a colour shows the colour. The stops follow the
+   shader's own rotation about the grey axis — a third of a turn takes red to
+   green, two thirds to blue — so the track is a readout, not a decoration. */
+.slider-spectrum::before {
+  height: 5px;
+  background: linear-gradient(
+    90deg,
+    #f2665f 0%,
+    #e8d45c 16.7%,
+    #6fd98c 33.3%,
+    #63cbd8 50%,
+    #7a8ae8 66.7%,
+    #d877d0 83.3%,
+    #f2665f 100%
+  );
+  opacity: 0.82;
+}
+
+.slider-spectrum .slider-fill {
+  display: none;
 }
 
 .slider-knob {
@@ -839,26 +818,6 @@ button {
 
   .slider-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .rail {
-    gap: 12px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    padding: 4px 0;
-  }
-
-  .rail::-webkit-scrollbar {
-    display: none;
-  }
-
-  .rail .micro {
-    display: none;
-  }
-
-  .shape-swatch {
-    width: 32px;
-    height: 32px;
   }
 
   .border-line {

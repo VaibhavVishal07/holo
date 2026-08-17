@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { Sticker } from '../scene/Sticker'
 import { Backdrop } from '../scene/Backdrop'
 import { useTilt, usePrefersReducedMotion } from '../hooks/useTilt'
+import { useDeviceTilt } from '../hooks/useDeviceTilt'
 import { backgroundById, useStore } from '../state/store'
 
 interface Props {
@@ -25,6 +26,10 @@ export function Stage({ onUpload }: Props) {
   const reduceMotion = usePrefersReducedMotion()
 
   const engine = useTilt(surface, { auto, reduceMotion, lightX, lightY, lightFollow })
+  // The toggle is in the dock, but the sensor has to reach the engine, which lives
+  // here. Reduced motion turns it off outright: it is a continuous motion the
+  // person did not ask for each time.
+  useDeviceTilt(engine, useStore((s) => s.deviceTilt) && !reduceMotion)
 
   // A new artwork gets a new entry animation.
   const entryKey = useRef(0)

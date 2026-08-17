@@ -118,6 +118,7 @@ export function createHoloMaterial(textures: ArtworkTextures) {
       uFacet: { value: 1 },
       uDepth: { value: 0.42 },
       uLambdaShift: { value: 0 },
+      uHue: { value: 0 },
     },
   })
 }

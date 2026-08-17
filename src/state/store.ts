@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Artwork } from '../lib/artwork'
 import { processFile, processSource } from '../lib/artwork'
-import { SHAPES, drawShape, shapeById } from '../lib/shapes'
+import { drawDemoShape } from '../lib/demoShape'
 
 /**
  * Only values a human changes live here. Rotation, light position and time are
@@ -35,6 +35,8 @@ export const BACKGROUNDS: Background[] = [
 export interface Settings {
   holo: number
   shine: number
+  /** Rotates the whole spectrum, 0 neutral through 1 for a full turn. */
+  hue: number
   /** Multiplies the style's own laminate strength. */
   glass: number
   depth: number
@@ -56,6 +58,7 @@ export interface Settings {
 export const DEFAULTS: Settings = {
   holo: 0.85,
   shine: 0.6,
+  hue: 0,
   glass: 0.55,
   depth: 0.42,
   border: 7,
@@ -85,14 +88,20 @@ interface State extends Settings {
   showOriginal: boolean
   exportSettings: ExportSettings
   tab: DockTab
+  /**
+   * Whether the device's own tilt is driving the object. A capability rather than
+   * a look, so Reset leaves it alone.
+   */
+  deviceTilt: boolean
 
   set: <K extends keyof Settings>(key: K, value: Settings[K]) => void
   setExport: (patch: Partial<ExportSettings>) => void
   setTab: (tab: DockTab) => void
   setShowOriginal: (show: boolean) => void
-  /** Which built-in shape is on the canvas, when no upload is. */
-  shape: string
-  loadShape: (id: string) => void
+  setDeviceTilt: (on: boolean) => void
+  loadDemo: () => void
+  /** Re-rolls the film's colour, its strength and where the light is. */
+  shuffle: () => void
   loadFile: (file: File) => Promise<void>
   toggleInvert: () => Promise<void>
   reset: () => void
@@ -106,26 +115,53 @@ export const useStore = create<State>((set, get) => ({
   ...DEFAULTS,
   artwork: null,
   isDemo: true,
-  shape: SHAPES[0].id,
   invert: false,
   busy: false,
   error: null,
   showOriginal: false,
   exportSettings: { scale: 2, transparent: true },
   tab: 'film',
+  deviceTilt: false,
 
   set: (key, value) => set({ [key]: value } as Partial<State>),
   setExport: (patch) =>
     set((s) => ({ exportSettings: { ...s.exportSettings, ...patch } })),
   setTab: (tab) => set({ tab }),
   setShowOriginal: (showOriginal) => set({ showOriginal }),
+  setDeviceTilt: (deviceTilt) => set({ deviceTilt }),
 
-  loadShape: (id) => {
-    const shape = shapeById(id)
-    const artwork = processSource(drawShape(shape), false, shape.name)
+  loadDemo: () => {
+    const artwork = processSource(drawDemoShape(), false, 'Sparkle')
     lastFile = null
-    set({ artwork, shape: id, isDemo: true, invert: false, error: null })
+    set({ artwork, isDemo: true, invert: false, error: null })
   },
+
+  /**
+   * One action that produces a whole new look. The ranges are deliberately
+   * narrower than the sliders': every roll should land on something worth
+   * looking at, or the button stops being worth pressing.
+   */
+  shuffle: () =>
+    set({
+      hue: Math.random(),
+      holo: 0.7 + Math.random() * 0.3,
+      shine: 0.35 + Math.random() * 0.55,
+      glass: 0.3 + Math.random() * 0.65,
+      // The light moves, but only within the arc that actually diffracts.
+      //
+      // These bounds are measured, not guessed. Sweeping the light over a grid and
+      // counting coloured pixels shows a dead valley wherever it sits near the view
+      // axis: the half-vector goes flat, no angle means no wavelength, and the
+      // sheet is honestly silver. Off to one side and above, the same sweep holds
+      // between 7% and 15% of the sheet in colour. A button whose job is to always
+      // land on something has to stay inside that.
+      lightX: 0.42 + Math.random() * 0.5,
+      lightY: 0.18 + Math.random() * 0.75,
+      lightAngle: 0.4 + Math.random() * 0.32,
+      // The light just moved on purpose; letting the pointer take it back would
+      // undo half the roll.
+      lightFollow: false,
+    }),
 
   loadFile: async (file) => {
     set({ busy: true, error: null })
@@ -149,8 +185,7 @@ export const useStore = create<State>((set, get) => ({
     if (busy) return
     const next = !invert
     if (isDemo || !lastFile) {
-      const shape = shapeById(get().shape)
-      set({ artwork: processSource(drawShape(shape), next, shape.name), invert: next })
+      set({ artwork: processSource(drawDemoShape(), next, 'Sparkle'), invert: next })
       return
     }
     set({ busy: true })

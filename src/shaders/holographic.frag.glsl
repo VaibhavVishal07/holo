@@ -75,6 +75,7 @@ uniform float uAniso;
 uniform float uFacet;
 uniform float uDepth;        // bevel width at the die cut, and vinyl waviness
 uniform float uLambdaShift;  // micrometres, biases the whole film warm or cool
+uniform float uHue;          // turns of rotation applied to the diffracted colour
 
 const float PI = 3.141592653589793;
 const float TAU = 6.283185307179586;
@@ -163,6 +164,30 @@ vec3 spectral(float nm) {
  */
 float visible(float um) {
   return smoothstep(0.398, 0.452, um) * (1.0 - smoothstep(0.632, 0.698, um));
+}
+
+/**
+ * Rotates a colour about the grey axis by `turns`.
+ *
+ * A wavelength offset would be the physical way to move the film's colour, but a
+ * wavelength cannot wrap: push it far enough and the band simply leaves the
+ * visible window and the sheet goes silver. Rotating the diffracted colour
+ * instead keeps every band exactly where the geometry put it and only changes
+ * which colour arrives there — which is what a different foil stock does — and it
+ * comes back round to where it started.
+ */
+vec3 hueRotate(vec3 c, float turns) {
+  float a = turns * TAU;
+  float cs = cos(a);
+  // Rodrigues about (1,1,1)/sqrt(3), so the grey axis is fixed.
+  float sn = sin(a) * 0.5773502692;
+  float t = (1.0 - cs) / 3.0;
+  mat3 m = mat3(
+    cs + t, t + sn, t - sn,
+    t - sn, cs + t, t + sn,
+    t + sn, t - sn, cs + t
+  );
+  return m * c;
 }
 
 // --- the room ---------------------------------------------------------------
@@ -444,6 +469,14 @@ void main() {
     spectrum *= uSpectralBias;
     spectrum /= max(max(max(spectrum.r, spectrum.g), spectrum.b), 1e-3);
     spectrum = mix(vec3(dot(spectrum, vec3(0.3333))), spectrum, uSaturation);
+
+    // The dial. It sits here, on the normalised hue and before the white
+    // pedestal, so it changes which colour the grating delivers without touching
+    // how bright it is or how much of the sheet stays silver.
+    if (uHue > 0.0005) {
+      spectrum = max(hueRotate(spectrum, uHue), vec3(0.0));
+      spectrum /= max(max(max(spectrum.r, spectrum.g), spectrum.b), 1e-3);
+    }
 
     // Pearl: foil is never a pure spectral primary. There is always white
     // specular under the grating, and how much decides whether the film reads as

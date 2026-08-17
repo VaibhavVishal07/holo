@@ -7,6 +7,11 @@ interface Props {
   onChange: (value: number) => void
   /** How the number reads next to the track. Defaults to a percentage. */
   format?: (value: number) => string
+  /**
+   * Paints the spectrum along the track instead of a fill. For a control whose
+   * value *is* a colour, the track can simply show it.
+   */
+  spectrum?: boolean
 }
 
 /**
@@ -23,6 +28,7 @@ export function Slider({
   step = 0.01,
   onChange,
   format,
+  spectrum = false,
 }: Props) {
   const fill = ((value - min) / (max - min)) * 100
   const display = format ? format(value) : String(Math.round(fill))
@@ -30,7 +36,10 @@ export function Slider({
   return (
     <label className="slider">
       <span className="slider-label">{label}</span>
-      <span className="slider-track" style={{ ['--fill' as string]: fill }}>
+      <span
+        className={`slider-track${spectrum ? ' slider-spectrum' : ''}`}
+        style={{ ['--fill' as string]: fill }}
+      >
         <input
           type="range"
           min={min}

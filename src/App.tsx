@@ -14,7 +14,7 @@ export default function App() {
 
   useEffect(() => {
     const s = useStore.getState()
-    if (!s.artwork) s.loadShape(s.shape)
+    if (!s.artwork) s.loadDemo()
   }, [])
 
   // The whole interface takes the canvas colour, because the page is the canvas.

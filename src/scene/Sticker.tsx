@@ -108,6 +108,12 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
 
   const lightWorld = useMemo(() => new THREE.Vector3(), [])
 
+  // Hue is the one film property that gets its own easing. Everything else on the
+  // panel is a property of the material and should answer immediately, but a
+  // colour that slides round to its new value reads as the same piece of foil
+  // turning — and it is what makes Shuffle land as an event rather than a cut.
+  const easedHue = useRef(useStore.getState().hue)
+
   useFrame((_, delta) => {
     const s = useStore.getState()
     engine.update(delta)
@@ -175,6 +181,13 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     u.uFacet.value = FILM.facet
     u.uDepth.value = s.depth
     u.uLambdaShift.value = FILM.lambdaShift
+
+    // Hue lives on a circle, so 0.95 to 0.05 has to travel forward through 1
+    // rather than all the way back through green.
+    let dh = s.hue - easedHue.current
+    dh -= Math.round(dh)
+    easedHue.current = (easedHue.current + dh * Math.min(1, delta * 4.2) + 1) % 1
+    u.uHue.value = easedHue.current
 
     if (tilt.current) {
       // Depth is baked at one unit, so the sheet's thickness is just a scale.

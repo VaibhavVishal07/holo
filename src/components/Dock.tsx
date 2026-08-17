@@ -1,6 +1,7 @@
-import { ShapeRail } from './ShapeRail'
+import { useState } from 'react'
 import { Slider } from './Slider'
 import { LightPad } from './LightPad'
+import { deviceTiltSupported, requestDeviceTilt } from '../hooks/useDeviceTilt'
 import {
   BACKGROUNDS,
   useStore,
@@ -11,10 +12,9 @@ import {
 /**
  * One instrument, not a stack of unrelated rows.
  *
- * The shape rail stays out because it is the fastest way to get something on the
- * canvas. Everything else is grouped by what it acts on and shown one group at a
- * time, which is what keeps the panel from reading as a form. The body holds a
- * fixed height so switching groups never makes the panel jump.
+ * Controls are grouped by what they act on and shown one group at a time, which
+ * is what keeps the panel from reading as a form. The body holds a fixed height
+ * so switching groups never makes the panel jump.
  */
 
 const TABS: { id: DockTab; name: string }[] = [
@@ -38,10 +38,6 @@ export function Dock() {
   return (
     <div className="dock">
       <div className="dock-panel">
-        <div className="dock-row">
-          <ShapeRail />
-        </div>
-
         <div className="dock-row tab-bar">
           <div className="tabs" role="tablist" aria-label="Controls">
             {TABS.map((tab) => (
@@ -61,6 +57,15 @@ export function Dock() {
             <button
               type="button"
               className="action"
+              title="Re-roll the film, the colour and the light"
+              onClick={s.shuffle}
+            >
+              Shuffle
+            </button>
+            <TiltButton />
+            <button
+              type="button"
+              className="action"
               data-quiet={!s.auto}
               aria-pressed={s.auto}
               onClick={() => set('auto', !s.auto)}
@@ -74,10 +79,16 @@ export function Dock() {
         <div className="dock-row dock-body" role="tabpanel">
           {s.tab === 'film' && (
             <div className="slider-grid">
+              <Slider
+                label="Hue"
+                value={s.hue}
+                spectrum
+                format={(v) => `${Math.round(v * 360)}°`}
+                onChange={(v) => set('hue', v)}
+              />
               <Slider label="Holo" value={s.holo} onChange={(v) => set('holo', v)} />
               <Slider label="Shine" value={s.shine} onChange={(v) => set('shine', v)} />
               <Slider label="Glass" value={s.glass} onChange={(v) => set('glass', v)} />
-              <Slider label="Depth" value={s.depth} onChange={(v) => set('depth', v)} />
             </div>
           )}
 
@@ -117,6 +128,7 @@ export function Dock() {
                   onChange={(v) => set('border', v)}
                   format={(v) => String(v)}
                 />
+                <Slider label="Depth" value={s.depth} onChange={(v) => set('depth', v)} />
               </div>
               <div className="border-line">
                 <div
@@ -182,6 +194,37 @@ export function Dock() {
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Hands the object over to the phone's own tilt. Absent entirely on anything that
+ * cannot report its attitude, rather than present and inert.
+ */
+function TiltButton() {
+  const [supported] = useState(deviceTiltSupported)
+  const on = useStore((s) => s.deviceTilt)
+  const setDeviceTilt = useStore((s) => s.setDeviceTilt)
+
+  if (!supported) return null
+
+  return (
+    <button
+      type="button"
+      className="action"
+      data-quiet={!on}
+      aria-pressed={on}
+      onClick={() => {
+        if (on) {
+          setDeviceTilt(false)
+          return
+        }
+        // The permission prompt has to be asked for from inside this gesture.
+        void requestDeviceTilt().then((granted) => setDeviceTilt(granted))
+      }}
+    >
+      Tilt
+    </button>
   )
 }
 

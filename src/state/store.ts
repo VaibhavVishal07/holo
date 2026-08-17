@@ -70,7 +70,7 @@ interface State extends Settings {
   invert: boolean
   busy: boolean
   error: string | null
-  /** Non-null while a hold-to-compare is active. */
+  /** True while a hold-to-compare is active. */
   showOriginal: boolean
   exportSettings: ExportSettings
   advancedOpen: boolean

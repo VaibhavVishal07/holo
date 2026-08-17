@@ -22,8 +22,6 @@ import { useStore } from '../state/store'
  */
 
 const SWATCH = 27
-
-const min1 = (v: number) => (v > 1 ? 1 : v)
 const GAP = 10
 
 let discArtwork: Artwork | null = null
@@ -148,7 +146,7 @@ function Disc({ preset, textures, index, planeSize }: DiscProps) {
     u.uSpectralBias.value.copy(blend.bias)
     u.uKey.value = blend.get('key')
     u.uFill.value = blend.get('fill')
-    u.uHolo.value = 0.72 * blend.get('holoScale')
+    u.uHolo.value = 0.58 * blend.get('holoScale')
     u.uShine.value = 0.55 * blend.get('shineScale')
     u.uTexture.value = 0.4
     u.uSaturation.value = blend.get('saturation')
@@ -158,7 +156,7 @@ function Disc({ preset, textures, index, planeSize }: DiscProps) {
     // into noise, so the domains are scaled up rather than reproduced literally.
     u.uPatternScale.value = blend.get('patternScale') * 0.30
     u.uSwirl.value = blend.get('swirl')
-    u.uCoverage.value = min1(blend.get('coverage') * 1.45)
+    u.uCoverage.value = Math.min(1, blend.get('coverage') * 1.2)
     u.uRoughness.value = blend.get('roughness')
     u.uAniso.value = blend.get('aniso')
     u.uFacet.value = blend.get('facet')

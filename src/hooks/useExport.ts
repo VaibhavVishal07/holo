@@ -27,7 +27,7 @@ export function currentExportAspect(): number {
   return box ? box.aspect : 1
 }
 
-interface Frame {
+export interface Frame {
   /** Sub-rectangle of the current canvas, in CSS pixels. */
   x: number
   y: number
@@ -50,7 +50,7 @@ const corner = new THREE.Vector3()
  * `camera.setViewOffset`, which lets the renderer draw only that region at full
  * resolution.
  */
-function tightFrame(includeShadow = false): Frame | null {
+export function tightFrame(includeShadow = false): Frame | null {
   const handle = sceneHandle.current
   const state = useStore.getState()
   const artwork = state.artwork
@@ -81,9 +81,8 @@ function tightFrame(includeShadow = false): Frame | null {
   let maxX = -Infinity
   let maxY = -Infinity
 
-  const project = (object: THREE.Object3D, extra: number) => {
+  const project = (object: THREE.Object3D, spread: number) => {
     object.updateWorldMatrix(true, false)
-    const spread = extra
     for (const [lx, ly] of box) {
       for (const sx of spread ? [-spread, spread] : [0]) {
         for (const sy of spread ? [-spread, spread] : [0]) {

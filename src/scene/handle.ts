@@ -20,3 +20,22 @@ export interface SceneHandle {
 }
 
 export const sceneHandle: { current: SceneHandle | null } = { current: null }
+
+/**
+ * How the motion recorder takes the wheel. While `override` is set the render loop
+ * uses the pose it returns instead of the spring's, so the recording is of the
+ * live scene rather than a re-simulation of it.
+ */
+export interface MotionHandle {
+  canvas: HTMLCanvasElement
+  override:
+    | ((now: number) => {
+        rotX: number
+        rotY: number
+        lightX: number
+        lightY: number
+      })
+    | null
+}
+
+export const motionHandle: { current: MotionHandle | null } = { current: null }

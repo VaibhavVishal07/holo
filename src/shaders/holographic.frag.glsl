@@ -139,9 +139,16 @@ vec3 spectral(float nm) {
           vec3(0.84897130, 0.88445281, 0.73949448));
 }
 
-/** Rolls the spectrum off at both ends of vision instead of clipping it. */
+/**
+ * Rolls the spectrum off at both ends of vision instead of clipping it.
+ *
+ * The window is kept strictly inside `spectral`'s 400–700nm domain. If it reaches
+ * past either end there is a band of wavelengths where the diffraction has energy
+ * but the fit returns near-black, and that paints a grey rim around every patch of
+ * colour on the sticker.
+ */
 float visible(float um) {
-  return smoothstep(0.372, 0.428, um) * (1.0 - smoothstep(0.652, 0.720, um));
+  return smoothstep(0.402, 0.432, um) * (1.0 - smoothstep(0.662, 0.696, um));
 }
 
 // --- the room ---------------------------------------------------------------
@@ -202,8 +209,8 @@ vec3 srgbToLinear(vec3 c) {
 
 /** Lets bright reflections approach white smoothly rather than clipping flat. */
 vec3 shoulder(vec3 c) {
-  vec3 over = max(c - 0.86, 0.0);
-  return min(c, 0.86 + over / (1.0 + 6.0 * over));
+  vec3 over = max(c - 0.78, 0.0);
+  return min(c, 0.78 + over / (1.0 + 5.0 * over));
 }
 
 float sdfAt(vec2 uv) {
@@ -320,7 +327,8 @@ void main() {
   // thing reads as airbrushed rainbow strokes instead of foil holding a colour.
   vec2 domain = vec2(dot(pUv, g0) * 0.62, dot(pUv, g1) * 1.28);
 
-  float pitchNoise = noise(pUv * 7.5) * 0.66 + noise(pUv * 17.0 + 4.1) * 0.34;
+  float pitchNoise =
+    noise(pUv * 7.5) * 0.58 + noise(pUv * 17.0 + 4.1) * 0.28 + noise(pUv * 44.0 + 9.3) * 0.14;
   float pitch = uPeriod * (1.0 + uPeriodVar * (pitchNoise - 0.5) * 2.0);
 
   float x0 = abs(dot(hp, g0));
@@ -356,8 +364,13 @@ void main() {
   // Hue from the grating, intensity from the energy. Normalising here is what
   // keeps the colour vivid: summed orders otherwise average towards white and
   // the whole film goes pastel.
+  //
+  // A weak sum must not be normalised into a colour, and must not be allowed to
+  // contribute at all — a near-black spectrum stretched to unit peak is how a
+  // dark halo appears at the edge of a hotspot.
   float peak = max(max(spectrum.r, spectrum.g), spectrum.b);
-  if (peak > 1e-4) spectrum /= peak;
+  spectrum = peak > 1e-3 ? spectrum / peak : vec3(1.0);
+  energy *= smoothstep(0.02, 0.07, peak);
   // Foil is never a pure spectral primary: the grating is imperfect and there is
   // always white specular underneath. This pedestal is what separates bright
   // metal catching colour from a neon overlay.
@@ -371,7 +384,9 @@ void main() {
   // contrast, because averaging two fbms narrows the distribution and would
   // otherwise leave the whole surface hovering around the threshold.
   float patches =
-    fbm3(domain * uPatternScale) * 0.70 + fbm3(domain * uPatternScale * 3.3 + 9.0) * 0.30;
+    fbm3(domain * uPatternScale) * 0.66 +
+    fbm3(domain * uPatternScale * 3.3 + 9.0) * 0.26 +
+    fbm3(domain * uPatternScale * 11.0 + 31.0) * 0.08;
   patches = clamp((patches - 0.5) * 3.0 + 0.5, 0.0, 1.0);
   float lo = 0.72 - uCoverage * 0.76;
   float gate = smoothstep(lo, lo + 0.26, patches);
@@ -384,11 +399,11 @@ void main() {
   // gain lets the places where the gate and the grating actually agree saturate
   // completely. Concentration is the point, not average intensity.
   float agree = energy * gate;
-  float diffraction = clamp(agree * agree * uHolo * 34.0, 0.0, 1.0);
+  float diffraction = clamp(agree * agree * uHolo * 48.0, 0.0, 1.0);
   // One more push away from the middle. Partial diffraction over bright metal is
   // what reads as washed-out pastel, so the mid range is thinned out in favour of
   // committed colour and committed silver.
-  diffraction = smoothstep(0.06, 0.86, diffraction);
+  diffraction = smoothstep(0.04, 0.97, diffraction);
   // Diffracted light is redirected, not added: where the grating throws colour
   // at the eye it stops throwing white, so the silver has to give way.
   vec3 foil = mix(

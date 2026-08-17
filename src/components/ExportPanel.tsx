@@ -1,20 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
+import { currentExportAspect, exportDimensions, useExport } from '../hooks/useExport'
 import {
-  currentExportAspect,
-  exportDimensions,
-  useExport,
-} from '../hooks/useExport'
+  MOTION_PRESETS,
+  useMotionExport,
+  type MotionPreset,
+} from '../hooks/useMotionExport'
 import { backgroundById, useStore } from '../state/store'
 
 const SCALES: (1 | 2 | 4)[] = [1, 2, 4]
 
 export function ExportPanel() {
   const [open, setOpen] = useState(false)
+  const [motion, setMotion] = useState(false)
+  const [motionPreset, setMotionPreset] = useState<MotionPreset>('showcase')
   const anchor = useRef<HTMLDivElement>(null)
+
   const settings = useStore((s) => s.exportSettings)
   const setExport = useStore((s) => s.setExport)
+  const label = useStore((s) => s.artwork?.label ?? 'holo')
   const background = backgroundById(useStore((s) => s.background))
-  const { exportPng, busy, done } = useExport()
+
+  const still = useExport()
+  const clip = useMotionExport()
+  const busy = still.busy || clip.recording
 
   // The crop follows the tilt, so the dimensions are measured when the panel
   // opens rather than assumed.
@@ -50,66 +58,126 @@ export function ExportPanel() {
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        {done ? 'Exported' : 'Export'}
+        {still.done ? 'Exported' : 'Export'}
       </button>
 
       {open && (
         <div className="popover" role="dialog" aria-label="Export">
           <div className="popover-row">
-            <span className="popover-label">Resolution</span>
-            <div className="choices" role="radiogroup" aria-label="Resolution">
-              {SCALES.map((scale) => (
-                <button
-                  key={scale}
-                  type="button"
-                  role="radio"
-                  className="choice"
-                  aria-checked={settings.scale === scale}
-                  onClick={() => setExport({ scale })}
-                >
-                  {scale}×
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="popover-row">
-            <span className="popover-label">Background</span>
-            <div className="choices" role="radiogroup" aria-label="Background">
+            <div className="choices" role="radiogroup" aria-label="Kind">
               <button
                 type="button"
                 role="radio"
                 className="choice"
-                aria-checked={settings.transparent}
-                onClick={() => setExport({ transparent: true })}
+                aria-checked={!motion}
+                onClick={() => setMotion(false)}
               >
-                Transparent
+                Still
               </button>
               <button
                 type="button"
                 role="radio"
                 className="choice"
-                aria-checked={!settings.transparent}
-                disabled={transparentOnly}
-                onClick={() => setExport({ transparent: false })}
+                aria-checked={motion}
+                onClick={() => setMotion(true)}
               >
-                Current
+                Motion
               </button>
             </div>
           </div>
 
-          <p className="popover-summary">
-            PNG · {size.width} × {size.height} · current tilt
-          </p>
+          {motion ? (
+            <>
+              <div className="popover-stack" role="radiogroup" aria-label="Movement">
+                {MOTION_PRESETS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    className="choice choice-block"
+                    aria-checked={option.id === motionPreset}
+                    onClick={() => setMotionPreset(option.id)}
+                  >
+                    <span>{option.name}</span>
+                    <span className="choice-hint">{option.hint}</span>
+                  </button>
+                ))}
+              </div>
 
-          <button
-            type="button"
-            className="popover-submit"
-            disabled={busy}
-            onClick={() => void exportPng()}
-          >
-            {busy ? 'Rendering' : 'Export PNG'}
-          </button>
+              <p className="popover-summary">
+                {clip.error ?? 'WebM · 3 seconds · loops'}
+              </p>
+
+              <button
+                type="button"
+                className="popover-submit"
+                disabled={busy}
+                onClick={() => void clip.record(motionPreset, label)}
+              >
+                {clip.recording
+                  ? `Recording ${Math.round(clip.progress * 100)}%`
+                  : 'Export motion'}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="popover-row">
+                <span className="popover-label">Resolution</span>
+                <div className="choices" role="radiogroup" aria-label="Resolution">
+                  {SCALES.map((scale) => (
+                    <button
+                      key={scale}
+                      type="button"
+                      role="radio"
+                      className="choice"
+                      aria-checked={settings.scale === scale}
+                      onClick={() => setExport({ scale })}
+                    >
+                      {scale}×
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="popover-row">
+                <span className="popover-label">Background</span>
+                <div className="choices" role="radiogroup" aria-label="Background">
+                  <button
+                    type="button"
+                    role="radio"
+                    className="choice"
+                    aria-checked={settings.transparent}
+                    onClick={() => setExport({ transparent: true })}
+                  >
+                    Transparent
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    className="choice"
+                    aria-checked={!settings.transparent}
+                    disabled={transparentOnly}
+                    onClick={() => setExport({ transparent: false })}
+                  >
+                    Current
+                  </button>
+                </div>
+              </div>
+
+              <p className="popover-summary">
+                PNG · {size.width} × {size.height} · current tilt
+              </p>
+
+              <button
+                type="button"
+                className="popover-submit"
+                disabled={busy}
+                onClick={() => void still.exportPng()}
+              >
+                {still.busy ? 'Rendering' : 'Export PNG'}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

@@ -32,28 +32,35 @@ export function Stage({ onUpload }: Props) {
   }
 
   return (
-    <div className="stage" ref={surface}>
-      <Canvas
-        // Straight alpha out of the shader needs straight-alpha blending. The
-        // canvas itself stays opaque, so nothing depends on how the browser
-        // interprets the buffer.
-        gl={{ antialias: true, alpha: true, premultipliedAlpha: false }}
-        dpr={[1, 2]}
-        camera={{ fov: 26, position: [0, 0, 7.4], near: 0.1, far: 60 }}
-        flat
-        onCreated={({ gl }) => {
-          gl.setClearColor(new THREE.Color('#000000'), 0)
-        }}
-      >
-        {background.color !== null ? (
-          <color attach="background" args={[background.color]} />
-        ) : (
-          <Backdrop />
-        )}
-        {artwork && (
-          <Sticker artwork={artwork} engine={engine} entryKey={entryKey.current} />
-        )}
-      </Canvas>
+    <div className="stage">
+      {/* The canvas is its own flex row rather than a backdrop with copy floated
+          over it, so on a short window the sticker gives up height instead of
+          colliding with the text underneath. It is also the drag target, which
+          keeps grab-to-rotate confined to the object's own space. */}
+      <div className="stage-canvas" ref={surface}>
+        <Canvas
+          // Straight alpha out of the shader needs straight-alpha blending. The
+          // canvas itself stays opaque, so nothing depends on how the browser
+          // interprets the buffer.
+          gl={{ antialias: true, alpha: true, premultipliedAlpha: false }}
+          dpr={[1, 2]}
+          camera={{ fov: 26, position: [0, 0, 7.4], near: 0.1, far: 60 }}
+          flat
+          onCreated={({ gl }) => {
+            gl.setClearColor(new THREE.Color('#000000'), 0)
+          }}
+        >
+          {background.color !== null ? (
+            <color attach="background" args={[background.color]} />
+          ) : (
+            <Backdrop />
+          )}
+          {artwork && (
+            <Sticker artwork={artwork} engine={engine} entryKey={entryKey.current} />
+          )}
+        </Canvas>
+        {busy && <p className="busy">Processing</p>}
+      </div>
 
       {isDemo && !busy && (
         <div className="stage-empty">
@@ -66,8 +73,6 @@ export function Stage({ onUpload }: Props) {
           </p>
         </div>
       )}
-
-      {busy && <p className="busy">Processing</p>}
 
       {error && (
         <div className="error" role="alert">

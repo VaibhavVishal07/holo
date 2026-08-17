@@ -14,10 +14,10 @@ import {
   createHoloMaterial,
   createShadowMaterial,
 } from './materials'
-import { sceneHandle } from './handle'
+import { motionHandle, sceneHandle } from './handle'
 
 /** Fraction of the shorter viewport axis the artwork should occupy. */
-const FILL = 0.62
+const FILL = 0.66
 
 interface Props {
   artwork: Artwork
@@ -70,6 +70,7 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
 
   useLayoutEffect(() => {
     if (!root.current || !tilt.current || !shadow.current) return
+    motionHandle.current = { canvas: gl.domElement, override: null }
     sceneHandle.current = {
       gl,
       scene,
@@ -82,6 +83,7 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     }
     return () => {
       sceneHandle.current = null
+      motionHandle.current = null
     }
   }, [gl, scene, camera, planeWidth, planeHeight])
 
@@ -100,9 +102,17 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     blend.step(delta)
     engine.update(delta)
 
+    // The motion recorder drives the pose directly while it is running, so what
+    // gets captured is this scene rather than a second simulation of it.
+    const scripted = motionHandle.current?.override?.(performance.now())
+    const rotX = scripted ? scripted.rotX : engine.rotX
+    const rotY = scripted ? scripted.rotY : engine.rotY
+    const lightX = scripted ? scripted.lightX : engine.lightX
+    const lightY = scripted ? scripted.lightY : engine.lightY
+
     if (tilt.current) {
-      tilt.current.rotation.x = engine.rotX
-      tilt.current.rotation.y = engine.rotY
+      tilt.current.rotation.x = rotX
+      tilt.current.rotation.y = rotY
     }
 
     entry.current = Math.min(1, entry.current + delta * 3.2)
@@ -112,7 +122,7 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     }
 
     const u = holoMaterial.uniforms
-    lightWorld.set(engine.lightX * 2.8, engine.lightY * 2.8, 1.6)
+    lightWorld.set(lightX * 2.8, lightY * 2.8, 1.6)
     u.uLight.value.copy(lightWorld)
     u.uCamera.value.copy(camera.position)
 
@@ -160,15 +170,11 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     const sh = shadowMaterial.uniforms
     sh.uBorderPx.value = borderPx
     sh.uBorderMode.value = borderMode
-    sh.uSpread.value = 16 + s.shadow * 34
-    sh.uOpacity.value = s.shadow * 0.24 * appear
-    sh.uSkew.value.set(engine.rotY * 0.30, -engine.rotX * 0.30)
+    sh.uSpread.value = 11 + s.shadow * 26
+    sh.uOpacity.value = s.shadow * 0.28 * appear
+    sh.uSkew.value.set(rotY * 0.30, -rotX * 0.30)
     if (shadow.current) {
-      shadow.current.position.set(
-        engine.rotY * 0.075 - 0.006,
-        engine.rotX * 0.075 - 0.020,
-        -0.05,
-      )
+      shadow.current.position.set(rotY * 0.075 - 0.006, rotX * 0.075 - 0.020, -0.05)
     }
   })
 

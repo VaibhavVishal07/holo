@@ -15,6 +15,16 @@ npm install
 npm run dev
 ```
 
+## Shapes
+
+Six ship with the tool: Sparkle, Star, Bolt, Heart, Ring, Bloom. Each is a single
+SVG path string, which is the whole point — the same string draws the swatch in the
+panel and, through `Path2D`, rasterises the mask the material is cut from. A swatch
+can never disagree with the sticker it produces.
+
+The set exercises the pipeline rather than filling a clipart tray: fine points, hard
+corners, deep concavity, a true hole, and smooth curves.
+
 ## The object
 
 The sticker is a real extruded solid. Its die-cut outline is traced out of the
@@ -81,6 +91,12 @@ Several decisions in there exist because the obvious version looked wrong:
 - **Two normals.** The grating follows the vinyl's real shape; grain and brushing
   are finer than the grating and only scatter the specular.
 
+**One film, not a picker.** The parameters that give the material its character —
+grating pitch and its variation, band count, orientation drift, pearl, saturation,
+the studio it reflects — are fixed in `materials/film.ts`. What is left on the panel
+is what actually changes the look of a sticker. A style list was tried and removed:
+nine of them mostly varied hue bias, which is a decision the tool can just make.
+
 **Glass, and why the highlights are a separate layer.** A laminate sits over the
 foil with its own normal and its own Fresnel, and `dispersion` separates the
 channels through it — widest where the surface turns away, which is what fringes a
@@ -139,12 +155,11 @@ those missing frames are the seam.
 ## The interface
 
 A dark studio with one instrument in it. The canvas is the room; the dock is a
-piece of equipment sitting in it. Three rows: the style rail, a tab bar, and the
-active group. The rail stays out because choosing the film is the first decision
-and the one people return to; everything else is grouped by what it acts on and
-shown one group at a time, which is what lets the tool carry this many controls
-without reading as a form. The body holds a fixed height so switching groups never
-makes the panel jump under the pointer.
+piece of equipment sitting in it. Three rows: the shape rail, a tab bar, and the
+active group. The rail stays out because it is the fastest way to get something on
+the canvas; everything else is grouped by what it acts on and shown one group at a
+time, which is what keeps the panel from reading as a form. The body holds a fixed
+height so switching groups never makes the panel jump under the pointer.
 
 Nothing is a card, nothing floats, and the only accent is white, because the
 sticker supplies the colour.
@@ -169,10 +184,10 @@ raking the light widens the spectrum on offer.
 
 ```
 src/
-  components/   Stage, Dock, StyleRail, Slider, LightPad, ExportPanel
+  components/   Stage, Dock, ShapeRail, Slider, LightPad, ExportPanel
   hooks/        useTilt, useExport, useMotionExport
-  lib/          artwork (decode + mask), edt (distance field), contour, demoArtwork
-  materials/    styles
+  lib/          artwork (decode + mask), edt (distance field), contour, shapes
+  materials/    film
   scene/        Sticker, stickerGeometry, Backdrop, materials, handle
   shaders/      holographic, edge, shadow, silhouette
   state/        store
@@ -181,12 +196,6 @@ src/
 ## Notes
 
 - Satoshi is served from `public/fonts/` as a variable font.
-- Nine styles: Classic, Soft, Prism, Glass, Chrome, Ice, Warm, Oil, Candy. They
-  differ in base metal, studio, grating pitch, pitch variance, band count,
-  orientation drift, pearl, laminate strength, dispersion, glint response, film
-  strength, specular roughness and anisotropy, and spectral bias — not just in
-  colour.
-- Switching style interpolates every parameter rather than cutting.
 - `prefers-reduced-motion` disables the idle drift and the Auto oscillation;
   direct manipulation still responds.
 - Optional device-orientation tilt on phones (spec item 74) is not implemented;

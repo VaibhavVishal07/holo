@@ -2,13 +2,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { Artwork } from '../lib/artwork'
-import { styleById } from '../materials/styles'
+import { FILM } from '../materials/film'
 import type { TiltEngine } from '../hooks/useTilt'
 import { useStore } from '../state/store'
 import {
   BORDER_MODE,
   BORDER_UNIT_PX,
-  StyleBlend,
   createArtworkTextures,
   createHoloMaterial,
   createShadowMaterial,
@@ -50,11 +49,6 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
       textures.dispose()
     },
     [holoMaterial, shadowMaterial, textures],
-  )
-
-  const blend = useMemo(
-    () => new StyleBlend(styleById(useStore.getState().style)),
-    [],
   )
 
   // The padded mask's aspect; the padding is where the die cut and the shadow
@@ -116,8 +110,6 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
 
   useFrame((_, delta) => {
     const s = useStore.getState()
-    blend.setTarget(styleById(s.style))
-    blend.step(delta)
     engine.update(delta)
 
     // The motion recorder drives the pose directly while it is running, so what
@@ -157,33 +149,32 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     u.uBorderPx.value = borderPx
     u.uBorderMode.value = borderMode
     u.uOriginal.value = s.showOriginal ? 1 : 0
-    u.uBase.value.copy(blend.base)
-    u.uEnvLow.value.copy(blend.envLow)
-    u.uEnvHigh.value.copy(blend.envHigh)
-    u.uSpectralBias.value.copy(blend.bias)
-    u.uKey.value = blend.get('key')
-    u.uFill.value = blend.get('fill')
+    u.uBase.value.set(FILM.base)
+    u.uEnvLow.value.set(FILM.envLow)
+    u.uEnvHigh.value.set(FILM.envHigh)
+    u.uSpectralBias.value.set(FILM.bias[0], FILM.bias[1], FILM.bias[2])
+    u.uKey.value = FILM.key
+    u.uFill.value = FILM.fill
     u.uOpacity.value = appear
-    u.uHolo.value = s.holo * blend.get('holoScale')
-    u.uShine.value = s.shine * blend.get('shineScale')
+    u.uHolo.value = s.holo
+    u.uShine.value = s.shine
     // Grain follows the film's own facet character rather than a separate control.
-    u.uTexture.value = 0.22 + blend.get('facet') * 0.34
-    u.uSaturation.value = blend.get('saturation')
-    u.uPearl.value = blend.get('pearl')
-    // The style sets the film's own laminate; the slider scales it.
-    u.uGlass.value = blend.get('glass') * (0.35 + s.glass * 1.45)
-    u.uDispersion.value = blend.get('dispersion')
-    u.uSparkle.value = blend.get('sparkle')
-    u.uPeriod.value = blend.get('period')
-    u.uPeriodVar.value = blend.get('periodVar')
-    u.uFlow.value = blend.get('flow')
-    u.uSwirl.value = blend.get('swirl')
-    u.uCoverage.value = blend.get('coverage')
-    u.uRoughness.value = blend.get('roughness')
-    u.uAniso.value = blend.get('aniso')
-    u.uFacet.value = blend.get('facet')
+    u.uTexture.value = 0.22 + FILM.facet * 0.34
+    u.uSaturation.value = FILM.saturation
+    u.uPearl.value = FILM.pearl
+    u.uGlass.value = 0.35 + s.glass * 1.45
+    u.uDispersion.value = FILM.dispersion
+    u.uSparkle.value = FILM.sparkle
+    u.uPeriod.value = FILM.period
+    u.uPeriodVar.value = FILM.periodVar
+    u.uFlow.value = FILM.flow
+    u.uSwirl.value = FILM.swirl
+    u.uCoverage.value = FILM.coverage
+    u.uRoughness.value = FILM.roughness
+    u.uAniso.value = FILM.aniso
+    u.uFacet.value = FILM.facet
     u.uDepth.value = s.depth
-    u.uLambdaShift.value = blend.get('lambdaShift')
+    u.uLambdaShift.value = FILM.lambdaShift
 
     if (tilt.current) {
       // Depth is baked at one unit, so the sheet's thickness is just a scale.

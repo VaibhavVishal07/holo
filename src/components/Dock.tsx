@@ -1,4 +1,4 @@
-import { StyleRail } from './StyleRail'
+import { ShapeRail } from './ShapeRail'
 import { Slider } from './Slider'
 import { LightPad } from './LightPad'
 import {
@@ -11,11 +11,10 @@ import {
 /**
  * One instrument, not a stack of unrelated rows.
  *
- * The style rail stays out because choosing the film is the first decision and the
- * one people come back to. Everything else is grouped by what it acts on and shown
- * one group at a time, which is what lets nine controls live here without the panel
- * reading as a form. The body holds a fixed height so switching groups never makes
- * the panel jump.
+ * The shape rail stays out because it is the fastest way to get something on the
+ * canvas. Everything else is grouped by what it acts on and shown one group at a
+ * time, which is what keeps the panel from reading as a form. The body holds a
+ * fixed height so switching groups never makes the panel jump.
  */
 
 const TABS: { id: DockTab; name: string }[] = [
@@ -40,7 +39,7 @@ export function Dock() {
     <div className="dock">
       <div className="dock-panel">
         <div className="dock-row">
-          <StyleRail />
+          <ShapeRail />
         </div>
 
         <div className="dock-row tab-bar">

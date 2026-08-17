@@ -328,7 +328,7 @@ button {
   white-space: nowrap;
 }
 
-/* --- material rail -------------------------------------------------------- */
+/* --- shape rail ---------------------------------------------------------- */
 
 .rail {
   display: flex;
@@ -337,58 +337,38 @@ button {
   min-width: 0;
 }
 
-.rail-swatches {
+.rail-shapes {
   display: flex;
-  gap: 10px;
-  position: relative;
+  gap: 6px;
 }
 
-.swatch {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  position: relative;
+.shape-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  transition: color 160ms var(--ease), border-color 160ms var(--ease),
+    background-color 160ms var(--ease);
+}
+
+.shape-swatch svg {
+  width: 19px;
+  height: 19px;
   display: block;
 }
 
-/* The ring sits clear of the disc so it never crops the material. The swatch
-   itself must not scale on hover — the disc behind it is drawn by GL and would
-   not follow. */
-.swatch::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border: 1px solid transparent;
-  border-radius: 50%;
-  transition: border-color 180ms var(--ease);
+.shape-swatch:hover {
+  color: var(--muted);
+  border-color: var(--hairline);
 }
 
-.swatch:hover::after {
+.shape-swatch[aria-checked='true'] {
+  color: var(--ink);
   border-color: var(--hairline-strong);
-}
-
-.swatch[aria-checked='true']::after {
-  border-color: var(--ink);
-}
-
-.swatch:focus-visible {
-  outline-offset: 5px;
-}
-
-.rail-canvas {
-  position: absolute;
-  inset: 0;
-}
-
-.rail-canvas,
-.rail-canvas * {
-  pointer-events: none;
-}
-
-.rail-name {
-  font-size: 13px;
-  font-weight: 500;
-  margin-left: auto;
+  background: var(--panel-raised);
 }
 
 /* --- tabs ----------------------------------------------------------------- */
@@ -481,13 +461,6 @@ button {
   height: 1px;
   opacity: 0;
   pointer-events: none;
-}
-
-.light-pad-axis:focus-visible {
-  opacity: 1;
-  width: 100%;
-  height: 100%;
-  inset: 0;
 }
 
 .light-pad:focus-within {
@@ -883,15 +856,9 @@ button {
     display: none;
   }
 
-  /* In a scrolling rail the name must sit in the flow, not be pushed to a far
-     edge that only exists once the row has already overflowed. */
-  .rail-name {
-    margin-left: 4px;
-  }
-
-  .swatch {
-    width: 28px;
-    height: 28px;
+  .shape-swatch {
+    width: 32px;
+    height: 32px;
   }
 
   .border-line {

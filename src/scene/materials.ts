@@ -1,6 +1,5 @@
 import * as THREE from 'three'
 import type { Artwork } from '../lib/artwork'
-import type { HoloStyle } from '../materials/styles'
 import holoVert from '../shaders/holographic.vert.glsl?raw'
 import holoFrag from '../shaders/holographic.frag.glsl?raw'
 import silhouetteVert from '../shaders/silhouette.vert.glsl?raw'
@@ -158,76 +157,4 @@ export function createShadowMaterial(textures: ArtworkTextures) {
       uColor: { value: new THREE.Color('#2A2822') },
     },
   })
-}
-
-/**
- * A style with every field mutable, so switching films can be interpolated
- * rather than cut. Nobody asked for a transition; a hard swap simply looks like
- * two different pictures instead of one object changing material.
- */
-export class StyleBlend {
-  base = new THREE.Color()
-  envLow = new THREE.Color()
-  envHigh = new THREE.Color()
-  bias = new THREE.Vector3()
-  private numeric: Record<string, number> = {}
-
-  private targetBase = new THREE.Color()
-  private targetEnvLow = new THREE.Color()
-  private targetEnvHigh = new THREE.Color()
-  private targetBias = new THREE.Vector3()
-  private targetNumeric: Record<string, number> = {}
-
-  private static readonly KEYS = [
-    'key',
-    'fill',
-    'saturation',
-    'pearl',
-    'glass',
-    'dispersion',
-    'sparkle',
-    'period',
-    'periodVar',
-    'flow',
-    'swirl',
-    'coverage',
-    'roughness',
-    'aniso',
-    'facet',
-    'lambdaShift',
-    'holoScale',
-    'shineScale',
-  ] as const
-
-  constructor(style: HoloStyle) {
-    this.setTarget(style)
-    this.base.copy(this.targetBase)
-    this.envLow.copy(this.targetEnvLow)
-    this.envHigh.copy(this.targetEnvHigh)
-    this.bias.copy(this.targetBias)
-    for (const key of StyleBlend.KEYS) this.numeric[key] = this.targetNumeric[key]
-  }
-
-  setTarget(style: HoloStyle) {
-    this.targetBase.set(style.base)
-    this.targetEnvLow.set(style.envLow)
-    this.targetEnvHigh.set(style.envHigh)
-    this.targetBias.set(style.bias[0], style.bias[1], style.bias[2])
-    for (const key of StyleBlend.KEYS) this.targetNumeric[key] = style[key]
-  }
-
-  get(key: (typeof StyleBlend.KEYS)[number]) {
-    return this.numeric[key]
-  }
-
-  step(dt: number) {
-    const t = 1 - Math.exp(-dt * 7)
-    this.base.lerp(this.targetBase, t)
-    this.envLow.lerp(this.targetEnvLow, t)
-    this.envHigh.lerp(this.targetEnvHigh, t)
-    this.bias.lerp(this.targetBias, t)
-    for (const key of StyleBlend.KEYS) {
-      this.numeric[key] += (this.targetNumeric[key] - this.numeric[key]) * t
-    }
-  }
 }

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Artwork } from '../lib/artwork'
 import { processFile, processSource } from '../lib/artwork'
-import { drawDemoArtwork } from '../lib/demoArtwork'
+import { SHAPES, drawShape, shapeById } from '../lib/shapes'
 
 /**
  * Only values a human changes live here. Rotation, light position and time are
@@ -33,8 +33,6 @@ export const BACKGROUNDS: Background[] = [
 ]
 
 export interface Settings {
-  /** Which holographic style the sticker is made of. */
-  style: string
   holo: number
   shine: number
   /** Multiplies the style's own laminate strength. */
@@ -56,7 +54,6 @@ export interface Settings {
 }
 
 export const DEFAULTS: Settings = {
-  style: 'classic',
   holo: 0.85,
   shine: 0.6,
   glass: 0.55,
@@ -93,7 +90,9 @@ interface State extends Settings {
   setExport: (patch: Partial<ExportSettings>) => void
   setTab: (tab: DockTab) => void
   setShowOriginal: (show: boolean) => void
-  loadDemo: () => void
+  /** Which built-in shape is on the canvas, when no upload is. */
+  shape: string
+  loadShape: (id: string) => void
   loadFile: (file: File) => Promise<void>
   toggleInvert: () => Promise<void>
   reset: () => void
@@ -107,6 +106,7 @@ export const useStore = create<State>((set, get) => ({
   ...DEFAULTS,
   artwork: null,
   isDemo: true,
+  shape: SHAPES[0].id,
   invert: false,
   busy: false,
   error: null,
@@ -120,10 +120,11 @@ export const useStore = create<State>((set, get) => ({
   setTab: (tab) => set({ tab }),
   setShowOriginal: (showOriginal) => set({ showOriginal }),
 
-  loadDemo: () => {
-    const artwork = processSource(drawDemoArtwork(), false, 'Demo')
+  loadShape: (id) => {
+    const shape = shapeById(id)
+    const artwork = processSource(drawShape(shape), false, shape.name)
     lastFile = null
-    set({ artwork, isDemo: true, invert: false, error: null })
+    set({ artwork, shape: id, isDemo: true, invert: false, error: null })
   },
 
   loadFile: async (file) => {
@@ -148,7 +149,8 @@ export const useStore = create<State>((set, get) => ({
     if (busy) return
     const next = !invert
     if (isDemo || !lastFile) {
-      set({ artwork: processSource(drawDemoArtwork(), next, 'Demo'), invert: next })
+      const shape = shapeById(get().shape)
+      set({ artwork: processSource(drawShape(shape), next, shape.name), invert: next })
       return
     }
     set({ busy: true })

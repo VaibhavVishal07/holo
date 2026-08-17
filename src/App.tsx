@@ -13,7 +13,8 @@ export default function App() {
   const dragDepth = useRef(0)
 
   useEffect(() => {
-    if (!useStore.getState().artwork) useStore.getState().loadDemo()
+    const s = useStore.getState()
+    if (!s.artwork) s.loadShape(s.shape)
   }, [])
 
   // The whole interface takes the canvas colour, because the page is the canvas.

@@ -75,6 +75,8 @@ uniform float uAniso;
 uniform float uFacet;
 uniform float uDepth;        // bevel width at the die cut, and vinyl waviness
 uniform float uLambdaShift;  // micrometres, biases the whole film warm or cool
+uniform float uFilmThickness;// laminate thickness in micrometres
+uniform float uFilmVar;      // how much that thickness wanders across the sheet
 uniform float uHue;          // turns of rotation applied to the diffracted colour
 
 const float PI = 3.141592653589793;
@@ -206,6 +208,23 @@ float softRect(vec2 p, vec2 halfSize, float soft) {
  * goes out on its own. Painting stars onto the artwork instead would leave them
  * stuck to it, which is the tell of a decorative overlay.
  */
+vec2 rotate2(vec2 q, float a) {
+  float c = cos(a);
+  float s = sin(a);
+  return vec2(q.x * c - q.y * s, q.x * s + q.y * c);
+}
+
+/** A repeating row of strip lights, `spacing` apart, each `width` half-thick. */
+float slats(vec2 q, float spacing, float width, float soft) {
+  float d = abs(fract(q.y / spacing + 0.5) - 0.5) * spacing;
+  // The falloff is never allowed to be narrower than a pixel of the reflection's
+  // own gradient. Where the surface turns quickly a fixed-width line lands between
+  // samples and the streak beads into a dotted trail that crawls as the object
+  // moves; widening it exactly there keeps it a continuous line.
+  float aa = fwidth(d) * 1.1;
+  return 1.0 - smoothstep(width, width + max(soft, aa), d);
+}
+
 float glint(vec2 q, float size) {
   float r = length(q) / size;
   float core = exp(-r * r * 2.2);
@@ -255,23 +274,52 @@ vec3 room(vec3 r) {
  * is exactly backwards: on real prints the two sit on top of one another.
  */
 vec3 roomHighlights(vec3 r) {
-  vec2 p = (r.xy / max(0.30, r.z)) * 5.2;
+  // Deliberately a much gentler magnification than the room's body uses.
+  //
+  // The body wants magnifying, because that is what makes a couple of degrees of
+  // tilt swing the silver across its whole range. The sources cannot afford it. A
+  // sheet held face-on reflects p = (0,0) and a fully tilted one reaches about
+  // 0.85 in surface terms — which at 5.2x lands past 4, so every strip and glint
+  // sat outside the range the reflection can actually reach and the sticker never
+  // caught a single one. At this scale the reachable disc is about 1.9 across, and
+  // the sources below are placed inside it.
+  vec2 p = (r.xy / max(0.30, r.z)) * 2.2;
 
-  // Two narrow strip lights. Reflected off a surface that is never perfectly
-  // flat, a thin bright source becomes a long sinuous highlight that travels as
-  // the object turns — that streak is what reads as a wet laminate, and a broad
-  // softbox cannot produce it however bright it gets.
-  float stripA = softRect(p - vec2(0.10, 0.40), vec2(2.30, 0.055), 0.09);
-  float stripB = softRect(p - vec2(-0.62, -0.14), vec2(0.045, 1.80), 0.075);
+  // Two crossed ceilings of strip lights.
+  //
+  // A single strip cannot do this job, and the reason is worth stating because it
+  // took a debug pass to see. A flat face reflects one nearly constant direction,
+  // so one source is hit or missed for the entire face at once — and the sheet's
+  // own waviness moves the reflection by only a fraction of the distance between
+  // sources. Every streak therefore appeared on the bevels, where the normal turns
+  // through everything, and never on the faces, where it matters. A repeating
+  // ceiling means whatever direction a face happens to look in, a strip is nearby,
+  // and the waviness is more than enough to sweep across it. That is what makes a
+  // long sinuous highlight travel over the surface as the object turns, which is
+  // the single clearest signal that a print is laminated.
+  // The spacing is set against how far the sheet's own waviness carries the
+  // reflection, and the window is narrow. Much wider and a whole face sits inside
+  // one band and blows out flat; much tighter and a dozen lines cross every face
+  // and the result reads as a contour map drawn on top rather than as reflections.
+  // At this pitch one or two bold streaks cross a face. They are also kept very
+  // thin, so most directions stay dark: a ceiling that is more light than gap is
+  // just a bright room, and then nothing on the sheet reads as a highlight at all.
+  float stripA = slats(rotate2(p, 0.20), 0.400, 0.0035, 0.0090);
+  float stripB = slats(rotate2(p, 1.44), 0.560, 0.0026, 0.0072);
 
-  // Three glints, scattered so a tilt only ever catches one or two.
+  // Glints scattered across the reachable disc, so a tilt catches one or two at a
+  // time and they arrive, travel and go out on their own.
+  // Small enough to read as stars rather than blemishes: at the scale of the slat
+  // spacing above, a wide glint is just another soft blob, and the four spikes that
+  // make it look like a point source get lost.
   float sparks =
-    glint(p - vec2(0.52, 0.76), 0.115) +
-    glint(p - vec2(-0.86, 0.30), 0.085) * 0.8 +
-    glint(p - vec2(0.16, -0.70), 0.095) * 0.65;
+    glint(p - vec2(0.16, 0.88), 0.055) +
+    glint(p - vec2(-0.82, 0.24), 0.045) * 0.85 +
+    glint(p - vec2(0.92, -0.54), 0.065) * 0.7 +
+    glint(p - vec2(-0.36, -0.92), 0.040) * 0.6;
 
-  return vec3(1.0, 0.998, 0.99) * stripA * 2.1 +
-         vec3(0.96, 0.985, 1.0) * stripB * 1.0 +
+  return vec3(1.0, 0.998, 0.99) * stripA * 2.3 +
+         vec3(0.96, 0.985, 1.0) * stripB * 1.45 +
          vec3(1.0) * sparks * uSparkle * 3.4;
 }
 
@@ -297,10 +345,33 @@ vec3 srgbToLinear(vec3 c) {
   return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
 }
 
-/** Lets bright reflections approach white smoothly rather than clipping flat. */
+/**
+ * Lets bright reflections approach white smoothly rather than clipping flat.
+ *
+ * Rolls off the *brightest channel* and scales the others with it, rather than
+ * compressing each channel on its own. Per-channel compression pulls the leading
+ * channel down towards the trailing ones, so every bright region quietly loses its
+ * colour — which is most of why a saturated film still rendered as pastel.
+ */
 vec3 shoulder(vec3 c) {
-  vec3 over = max(c - 0.68, 0.0);
-  return min(c, 0.68 + over / (1.0 + 4.2 * over));
+  float m = max(max(c.r, c.g), c.b);
+  if (m <= 0.82) return c;
+  float over = m - 0.82;
+  return c * ((0.82 + over / (1.0 + 2.2 * over)) / m);
+}
+
+/**
+ * The same roll-off, per channel, which lets a colour move towards white.
+ *
+ * Both are needed, for opposite reasons. The film's own colour must keep its
+ * chroma, or every bright band washes out. A specular reflection off the laminate
+ * IS white and genuinely does wash out whatever is beneath it, so it has to be
+ * allowed to climb channel by channel — rolling the highlights off with their
+ * chroma preserved instead scales them back down into the colour and they vanish.
+ */
+vec3 clipToWhite(vec3 c) {
+  vec3 over = max(c - 0.82, 0.0);
+  return min(c, 0.82 + over / (1.0 + 2.2 * over));
 }
 
 float sdfAt(vec2 uv) {
@@ -337,7 +408,7 @@ void main() {
   // Vinyl is never dead flat. This large, slow waviness is the single biggest
   // reason the specular sweep looks handmade rather than computed — and being
   // slow is the point, since it also bends the wavelength field.
-  vec3 wave = fbmd(pUv * 1.9 + 4.7);
+  vec3 wave = fbmd(pUv * 2.0 + 4.7);
   // Micro-roughness. This is finer than the grating, so it scatters the gloss
   // but must not reach the wavelength — feeding it into the diffraction is what
   // made the colour fizz from pixel to pixel.
@@ -351,7 +422,7 @@ void main() {
   brush *= 1.0 - smoothstep(0.30, 0.85, fwidth(pUv.y) * 380.0);
 
   // Two normals: the shape of the sheet, and the roughness sitting on it.
-  vec2 slopeMacro = wave.yz * (0.030 + uDepth * 0.050);
+  vec2 slopeMacro = wave.yz * (0.042 + uDepth * 0.075);
   vec2 slopeMicro =
     facet.yz * uFacet * 0.0022 +
     vec2(grain * 0.6, grain) * uTexture * 0.007 +
@@ -425,31 +496,101 @@ void main() {
 
   float x0 = abs(dot(hp, g0));
 
-  float um = pitch * x0 + uLambdaShift;
+  // --- the laminate's own interference -------------------------------------
+  //
+  // The grating alone cannot cover the sheet, and the reason is in its own
+  // equation. Its path difference is pitch * sin(half-angle), so it vanishes
+  // wherever the light sits near the eye's own axis — and on a sticker held
+  // roughly face-on that is most of the surface. It left large regions sitting
+  // blank chrome no matter how far the strength was pushed.
+  //
+  // The other half of the physics fixes it exactly. A clear laminate has real
+  // thickness, and light reflecting off its top and bottom surfaces interferes
+  // with a path difference of 2 n d cos(theta) — which is LARGEST head-on,
+  // precisely where the grating gives up. Added together the sheet always has
+  // some colour to return, and it still bands and still sweeps when it moves,
+  // because both terms vary across the surface and both depend on the angle.
+  //
+  // This is also why real rainbow film and a soap bubble look related: the same
+  // two mechanisms, in different proportion.
+  float cosT = sqrt(max(0.05, 1.0 - (1.0 - ndv * ndv) / 2.1025)); // Snell, n = 1.45
+  vec2 warpT = vec2(fbm2(pUv * 1.7 + 51.0), fbm2(pUv * 1.7 + 63.0)) - 0.5;
+  // The slow field decides where the bands run. The small faster term only wobbles
+  // their edges — enough that they read as a coated surface rather than an airbrush
+  // gradient, and small enough that the colour still sweeps instead of fizzing.
+  float thickField = fbm2(pUv * uFlow * 0.8 + warpT * 1.5 + 27.0)
+    + 0.10 * (fbm2(pUv * uFlow * 3.6 + 71.0) - 0.5);
+  float thickness = uFilmThickness * (1.0 + uFilmVar * (thickField - 0.5) * 2.0);
+  // Holo is now literally how much film there is. At zero the laminate is optically
+  // thin and the sheet is chrome that only flashes where the grating fires; at full
+  // it is coated everywhere.
+  float laminate = 2.0 * 1.45 * thickness * cosT * smoothstep(0.04, 0.88, uHolo);
+
+  float opd = laminate + pitch * x0 + uLambdaShift;
+
+  // Which interference orders reach the eye. Solving for the order instead of
+  // summing a fixed few is what makes the coverage a guarantee rather than a
+  // calibration: whatever the path difference turns out to be, these two bracket
+  // the visible window, so there is always a wavelength on offer.
+  //
+  // The path difference is deliberately kept low enough to stay in the first few
+  // orders, and that constraint is what keeps the film saturated. At high order the
+  // two neighbouring orders fall close enough together that BOTH sit fully inside
+  // vision at once — around order five they are 0.60um and 0.49um — so orange and
+  // cyan arrive with equal weight and average to a pale cream. A thick soap film
+  // genuinely does go white for this reason; a rainbow sticker must not.
+  float order = max(1.0, floor(opd / 0.55 + 0.5));
 
   // Dispersion. The laminate bends each channel a little differently, and the
   // optical path through it is longest where the surface turns away — so the
   // separation is widest on the bevels. That coloured fringe along an edge is the
   // single most recognisable thing about a glossy holographic print.
   float spread = uDispersion * (0.20 + rimness * 1.7);
-  float umR = um * (1.0 + 0.055 * spread);
-  float umB = um * (1.0 - 0.055 * spread);
-  float visR = visible(umR);
-  float vis = visible(um);
-  float visB = visible(umB);
-  vec3 spectrum = vec3(
-    spectral(umR * 1000.0).r * visR,
-    spectral(um * 1000.0).g * vis,
-    spectral(umB * 1000.0).b * visB
-  );
-  float energy = max(vis, max(visR, visB) * 0.85);
+  vec3 opdC = opd * vec3(1.0 + 0.055 * spread, 1.0, 1.0 - 0.055 * spread);
 
-  // Second order, faint. It only reaches the visible band at strong angles, where
-  // it lays a narrow secondary band beside the first.
-  float umSecond = pitch * x0 * 0.5 + uLambdaShift;
-  float visSecond = visible(umSecond) * 0.30;
-  spectrum += spectral(umSecond * 1000.0) * visSecond;
-  energy += visSecond;
+  vec3 lamA = opdC / (order - 0.5);
+  vec3 lamB = opdC / (order + 0.5);
+  vec3 visA = vec3(visible(lamA.r), visible(lamA.g), visible(lamA.b));
+  vec3 visB = vec3(visible(lamB.r), visible(lamB.g), visible(lamB.b));
+
+  // Each order sampled per channel, so the dispersion above survives.
+  vec3 sA = vec3(
+    spectral(lamA.r * 1000.0).r,
+    spectral(lamA.g * 1000.0).g,
+    spectral(lamA.b * 1000.0).b
+  );
+  vec3 sB = vec3(
+    spectral(lamB.r * 1000.0).r,
+    spectral(lamB.g * 1000.0).g,
+    spectral(lamB.b * 1000.0).b
+  );
+
+  // A weighted average of the two orders, not a sum, and squared so the handover
+  // is quick. Adding them left both hues present at equal weight through every
+  // transition, and the average of two hues is a step towards white — the whole
+  // film came out pastel. Squaring gives each band an owner and confines the
+  // blend to a narrow seam, which is also what a real film looks like.
+  float wA = max(visA.r, max(visA.g, visA.b));
+  float wB = max(visB.r, max(visB.g, visB.b));
+  // Fourth power. Squaring was not enough once the bands were made to run closer
+  // together: more bands means more handovers, and every handover that blends two
+  // hues evenly is a pale seam. This narrows each seam to a line.
+  wA *= wA; wA *= wA;
+  wB *= wB; wB *= wB;
+  vec3 spectrum = (sA * wA + sB * wB) / max(wA + wB, 1e-4);
+
+  // How much colour this fragment has to give at all, as distinct from which
+  // colour. Sharpening the hue handover above narrowed the seams between bands but
+  // could not fill them: at a handover the outgoing wavelength has left vision and
+  // the incoming one has barely entered, so both are weak, the silver underneath
+  // showed through, and every seam read as a pale tan line across the film. The
+  // curve lifts those partial values towards full while still leaving a genuinely
+  // out-of-band fragment at zero — so a seam stays a change of colour rather than
+  // becoming an absence of it, and bare chrome is still reachable.
+  float energy = smoothstep(0.02, 0.45, max(
+    max(visA.g, visB.g),
+    max(max(visA.r, visB.r), max(visA.b, visB.b)) * 0.85
+  ));
 
   // Hue from the grating, intensity from the energy. Normalising keeps the colour
   // from washing out where two orders overlap. A weak sum must not be normalised
@@ -489,19 +630,28 @@ void main() {
   // How strongly the film diffracts, varying broadly and smoothly across the
   // sheet. Smooth on purpose: a threshold here is what turns continuous bands
   // into patches with edges.
-  float breadth = 0.45 + 0.55 * fbm2(pUv * uFlow * 0.7 + 7.1);
+  float breadth = 0.66 + 0.34 * fbm2(pUv * uFlow * 0.7 + 7.1);
   // No light, no diffraction. Tying colour to the illuminated regions is what
   // makes the spectrum travel with the reflection rather than sit on the artwork.
-  float illuminated = 0.42 + 0.58 * smoothstep(0.06, 0.56, envLuma);
+  float illuminated = 0.60 + 0.40 * smoothstep(0.04, 0.50, envLuma);
 
   float diffraction =
-    clamp(energy * breadth * illuminated * uHolo * uCoverage * 2.45, 0.0, 1.0);
+    clamp(energy * breadth * illuminated * uHolo * uCoverage * 2.9, 0.0, 1.0);
 
-  // Diffracted light is redirected, not added: where the grating throws colour
-  // at the eye it stops throwing white, so the silver has to give way.
+  // Diffracted light is redirected, not added: where the grating throws colour at
+  // the eye it stops throwing white, so the silver has to give way.
+  //
+  // The level here is what decides whether this looks like an object or a glowing
+  // gradient, and it has to leave room above itself. Driving the spectrum to 1.66
+  // pushed it past anything displayable, so bright regions came back as white with a
+  // tint; but even at 1.1 it occupied the whole top of the tone curve, and then the
+  // laminate's own highlights had nowhere left to go and simply vanished into it.
+  // Held here, the coloured film is mid-toned, and the streaks and glints added
+  // further down are free to be the brightest things on the sticker — which on a
+  // real laminated print is exactly what they are.
   vec3 foil = mix(
     metal,
-    metal * 0.08 + spectrum * min(1.66, 0.64 + envLuma * 1.06),
+    metal * 0.07 + spectrum * min(0.86, 0.40 + envLuma * 0.62),
     diffraction
   );
 
@@ -549,11 +699,17 @@ void main() {
   color *= 1.0 - coat * 0.20;
   color += room(reflect(-v, coatNormal)) * coat * 0.26;
 
-  // Streaks and glints last, over everything. These are reflections off the top
-  // of the laminate, so no amount of colour underneath dims them.
+  // The film's colour is rolled off here, with its chroma intact, so a bright band
+  // stays a bright band instead of drifting towards white.
+  color = shoulder(color);
+
+  // Streaks and glints last, over everything and after that roll-off. These are
+  // reflections off the top of the laminate: no amount of colour underneath dims
+  // them, and they are the right thing to let blow out to white, because that is
+  // what a highlight on a laminated sticker actually does.
   color += highlights * (0.55 + uGlass * 2.1) * (0.45 + uShine * 0.95);
 
-  color = shoulder(color);
+  color = clipToWhite(color);
 
   // Hold-to-compare with the upload.
   if (uOriginal > 0.001) {

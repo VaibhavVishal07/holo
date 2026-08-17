@@ -6,11 +6,15 @@
  * actually changes the look of a sticker; everything here is the character of the
  * film itself and stays fixed.
  *
- * `period` is the grating pitch in micrometres, and it decides the geometry at
- * which colour appears: visible light is 0.40–0.70um, so at this pitch the film
- * turns violet once the half-angle sine reaches about 0.25 and has run through to
- * red by 0.44. `pearl` is how much white sits under the spectrum — near zero here,
- * which is what keeps the colour saturated rather than pastel.
+ * The film's colour comes from two optical path differences added together, and
+ * these numbers are what set them. `filmThickness` gives the laminate's own
+ * interference, which is what covers the sheet; `period` is the grating pitch,
+ * which is what makes the colour sweep as the object turns. Their sum is kept
+ * inside roughly 0.6–1.9um on purpose — enough that some interference order is
+ * always inside the visible 0.40–0.70um window, and few enough orders that no two
+ * of them are ever fully visible at once, which is what would turn the whole film
+ * pale. `pearl` is how much white sits under the spectrum: near zero here, which is
+ * the other half of keeping the colour saturated rather than pastel.
  */
 export const FILM = {
   /** Silver body tint. */
@@ -23,17 +27,16 @@ export const FILM = {
   fill: 0.42,
   /** Per-channel weighting of the diffracted spectrum. */
   bias: [1, 1, 1] as [number, number, number],
-  saturation: 1.3,
+  saturation: 1.5,
   /** How much white sits under the spectrum, 0 saturated to 1 white. */
   pearl: 0.02,
   /** Grating pitch, micrometres. */
-  period: 1.56,
-  /** Spatial variation of the pitch. This swing is what leaves chrome between
-   *  the sweeps: where it carries the wavelength outside the visible band, the
-   *  surface simply goes back to reflecting the room. */
+  period: 0.82,
+  /** Spatial variation of the pitch, which is most of what makes one region a
+   *  different colour from its neighbour at a given orientation. */
   periodVar: 0.6,
   /** Band sweeps across the artwork. */
-  flow: 2.5,
+  flow: 3.0,
   /** How far the grating orientation drifts. */
   swirl: 0.5,
   /** Overall strength of the film. */
@@ -49,4 +52,19 @@ export const FILM = {
   facet: 0.8,
   /** Micrometres added to every wavelength. */
   lambdaShift: 0,
+  /**
+   * Laminate thickness in micrometres, and how far it wanders across the sheet.
+   *
+   * This is the half of the material that covers the surface. The grating's path
+   * difference vanishes when the light is near the eye's axis, so on its own it
+   * left most of a face-on sticker as bare chrome — measured, only a third of the
+   * artwork carried any colour at all. Interference through a film of real
+   * thickness is strongest exactly there, and adding it took coverage to about
+   * four fifths without giving up the sweep.
+   *
+   * Holo scales this, so the slider runs from bare chrome through to a fully
+   * coated sheet.
+   */
+  filmThickness: 0.375,
+  filmVar: 0.43,
 }

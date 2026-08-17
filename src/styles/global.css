@@ -488,6 +488,17 @@ button {
   border-radius: 2px;
 }
 
+/* The track, the fill and the knob are drawing only. They are painted after the
+   native input, so without this they intercept the pointer: pressing the knob —
+   the one gesture everybody makes — would land on a span, and so would any press
+   on the filled part of the track. Dragging died and only presses on the bare
+   right-hand stretch of the track still reached the input. */
+.slider-track::before,
+.slider-fill,
+.slider-knob {
+  pointer-events: none;
+}
+
 .slider-track::before {
   content: '';
   left: 0;

@@ -181,6 +181,8 @@ export function Sticker({ artwork, engine, entryKey }: Props) {
     u.uFacet.value = FILM.facet
     u.uDepth.value = s.depth
     u.uLambdaShift.value = FILM.lambdaShift
+    u.uFilmThickness.value = FILM.filmThickness
+    u.uFilmVar.value = FILM.filmVar
 
     // Hue lives on a circle, so 0.95 to 0.05 has to travel forward through 1
     // rather than all the way back through green.

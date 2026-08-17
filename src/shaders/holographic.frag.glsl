@@ -377,15 +377,27 @@ void main() {
   // contribute at all — a near-black spectrum stretched to unit peak is how a
   // dark halo appears at the edge of a hotspot.
   float peak = max(max(spectrum.r, spectrum.g), spectrum.b);
-  spectrum = peak > 1e-3 ? spectrum / peak : vec3(1.0);
   energy *= smoothstep(0.02, 0.07, peak);
-  // Foil is never a pure spectral primary: the grating is imperfect and there is
-  // always white specular underneath. This pedestal is what separates bright
-  // metal catching colour from a neon overlay.
-  spectrum = mix(vec3(1.0), spectrum, 0.92);
 
-  spectrum *= uSpectralBias;
-  spectrum = mix(vec3(dot(spectrum, vec3(0.3333))), spectrum, uSaturation);
+  if (peak > 1e-3) {
+    spectrum /= peak;
+
+    // The film's bias shapes the hue and nothing else. Applied after the pedestal
+    // below it would tint that too, and every fragment with any diffraction at all
+    // would come out warm or cool — the film reads as uniformly coloured rather
+    // than as silver that catches a warm or cool spectrum. Renormalising after
+    // the bias keeps it from changing brightness either.
+    spectrum *= uSpectralBias;
+    spectrum /= max(max(max(spectrum.r, spectrum.g), spectrum.b), 1e-3);
+    spectrum = mix(vec3(dot(spectrum, vec3(0.3333))), spectrum, uSaturation);
+
+    // Foil is never a pure spectral primary: the grating is imperfect and there is
+    // always white specular underneath. This pedestal is what separates bright
+    // metal catching colour from a neon overlay.
+    spectrum = mix(vec3(1.0), spectrum, 0.92);
+  } else {
+    spectrum = vec3(1.0);
+  }
 
   // Only part of the film is ever in a diffracting orientation. Two scales of
   // patchiness — broad regions, then finer structure inside them — pushed for
